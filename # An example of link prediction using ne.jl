@@ -63,7 +63,7 @@ function train(; kws...)
     #### TRAIN/TEST splits
     # With bidirected graph, we make sure that an edge and its reverse
     # are in the same split 
-    train_pos_g, test_pos_g = rand_edge_split(g, 0.9, bidirected = isbidir)
+    train_dfpos_g, test_pos_g = rand_edge_split(g, 0.9, bidirected = isbidir)
     test_neg_g = negative_sample(g, num_neg_edges = test_pos_g.num_edges,
                                  bidirected = isbidir)
 
