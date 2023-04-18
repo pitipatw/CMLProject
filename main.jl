@@ -20,21 +20,136 @@
 # .
 # .
 # nL+4 Stress safety ratio (load case nL)
-
+using Asap
 #pre processing
+
+node_points = Dict{Int64,Vector{Float64}}()
+node_counter = 0
+nx = 5
+ny = 5
+nz = 1
+
+for i in 1:nz
+    for j in 1:ny
+        for k in 1:nx
+            global node_counter += 1
+            node_points[node_counter] = [j-1.0,k-1.0,i-1.0]
+        end
+    end
+end
+
+for i in sort(collect(keys(node_points)))
+    println(i)
+    println(node_points[i])
+end
+
+GS1 = getGS(node_points)
+
+#using Asap format here
+#random 2 numbers from 1 to 5 
+# node_points = Dict{Int64,Vector{Float64}}()
+n1 = rand(1:2) 
+n2 = rand(4:5)  
+println(n1,n2)
+
+# for 5x5 the right most dof are from dof = 42 44 46 48 50
+load_point = rand( [ 42 44 46 48 50 ] )
+load_mag = 1.0 #kN
+
+nodes = Vector{Asap.TrussNode}()
+     #Vector{Any}(undef, length(node_points))
+for i in range(1,25)
+    if i == n1 || i == n2
+        push!(nodes,Asap.TrussNode(node_points[i], :pinned))
+    else
+        push!(nodes,Asap.TrussNode(node_points[i], :zfixed))
+    end
+end
+
+
+load1 = [Asap.NodeForce(nodes[Int(load_point/2)], [ 0., -load_mag, 0.])]
+
+sec = Asap.TrussSection( 1000.0, 2.0e5)
+
+GS1 = getGS(node_points, 1.5)
+elements = Vector{Asap.TrussElement}()
+
+for i in eachindex(GS1)
+    push!(elements,Asap.TrussElement(nodes ,[GS1[i][1], GS1[i][2] ]  ,sec))
+end
+
+#assemble model
+model = Asap.TrussModel(nodes, elements, load1)
+
+#solve model
+Asap.solve!(model)
+
+#extract information
+println(model.u)
+println(elements[1].forces)
+println(nodes[1].reaction)
+
+σ = []
+for i in eachindex(elements)
+    push!(σ, elements[i].forces[1]/elements[i].section.A)
+end
+
+println(maximum(σ))
+#Done structural calculation.
+
+#training episodes 
+#number of episodes
+nE = 5000
+γ = 0.99
+nf = 100
+
+
+elements[1].section.A = 1e-6
+
+from model, elements and node, compute state.
+
+put model, elements, nodes into v andd w form 
+
+v = []
+w = []
+for i in eachindex(nodes)
+    vi = []
+    if sum(nodes[1].dof) == 0
+        push!(vi, 1)
+    else
+        push!(vi, 0)
+    end
+
+    push!(vi , nodes[i].reaction[1])
+    push!(vi , nodes[i].reaction[2])
+    #these 2 lines are for the load case 2, which mean, I have to do another model.
+    # push!(vi , node[i].reaction[1])
+    # push!(vi , node[i].reaction[2])
+    #has to be concat column wise
+    push!(v, vi)
+end
+
+for i in eachindex(elements)
+    wi = []
+    push!(wi, cos(elements[i].\))
+    push!(wi, sin(elements[i].θ))
+    push!(wi, elements[i].L)
+    push!(wi, elements[i].section.A)
+    push!(wi, elements[i].forces[1]/elements[i].section.A)
+    push!(w, wi)
+end
 
 #generate Ground Stucture based on set of node points
 # use Robar's function
-GS = nothing #elements
 
 # speciy upper-bound values for stress and displacement
-σ̄ = nothing
-δ̄ = nothing
-
+σbar =   200.0 #N/mm2
+δbar = 100.0*(max()) nothing
+E    = 2.0e5 #N/mm2
 # specify graph embedding class
 # nodes state
 
-nL = 1 #number of load cases
+nL = 2 #number of load cases
 nd = 2* (numberofnodes) # number of total dof
 nm = numberofmembers # number of members
 nf = xxx # size of the feature vector of a member 
