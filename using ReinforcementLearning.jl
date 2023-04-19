@@ -33,7 +33,7 @@ function (x::TopOptEnv)(action)
     elseif action ==:Hi
         x.reward = rand() < 0.1 ? 100_000 : -10
     else
-        @error "unknown action of $action"
+        x.reward = 1000000. #@error "unknown action of $action"
     end
 end
 
@@ -46,7 +46,21 @@ run(RandomPolicy(action_space(env)), env, StopAfterEpisode(1_000))
 hook = TotalRewardPerEpisode()
 
 run(RandomPolicy(action_space(env)), env, StopAfterEpisode(1_000), hook)
-run(a, env, StopAfterEpisode(1_000))
+
 
 a = EpsilonGreedyExplorer(1)
 a([1 ,2, 3 ,50 , 800 , 1,80,120])  
+
+policy1 = QBasedPolicy(
+           learner = MonteCarloLearner(;
+                   approximator=TabularQApproximator(
+                       ;n_state = 3,
+                       n_action = 3,
+                       opt = InvDecay(1.0)
+                   )
+               ),
+           explorer = EpsilonGreedyExplorer(0.1)
+       )
+
+hook = TotalRewardPerEpisode()
+run(policy1(action_space(env)) , env, StopAfterEpisode(1_000), hook)

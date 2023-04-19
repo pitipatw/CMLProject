@@ -173,7 +173,7 @@ end
 # specify graph embedding class
 # nodes state
 
-nL = 2 #number of load cases
+nL = 1 #number of load cases
 nd = 2 * length(nodes) # number of total dof
 nm = length(elements) # number of members
 nf = 100 # size of the feature vector of a member 
@@ -219,41 +219,77 @@ a = EpsilonGreedyExplorer(ϵ)
 θ8 = Matrix{Float64}(undef, nf, nf)
 θ9 = Matrix{Float64}(undef, nf, nf)
 
-function getΘ(θ1::Matrix{Float64}, θ2::Matrix{Float64}, θ3::Matrix{Float64}, θ4::Matrix{Float64}, θ5::Matrix{Float64}, θ6::Matrix{Float64}, θ7::Matrix{Float64}, θ8::Matrix{Float64}, θ9::Matrix{Float64})
-    #why am I doing this LOL 
-    return [θ1;θ2;θ3;θ4;θ5;θ6;θ7;θ8;θ9]
-end
-   
-    #policy
-    #policy is a function that takes in a state and outputs an action
-    #policy will input a state and i and get the hiest value of reward. 
+#policy
+#policy is a function that takes in a state and outputs an action
+#policy will input a state and i and get the hiest value of reward. 
 
-    #we are using epsilon-greedy policy
-    #we will use a random number generator to decide if we will explore or exploit
-    #if the random number is less than epsilon, we will explore
-    #if the random number is greater than epsilon, we will exploit
-    function policy(state, i)
-        if rand() < epsilon
-            #explore
-            return rand(1:2)
-        else
-            #exploit
-            return argmax([Qπ(state, i)
-        end
+#we are using epsilon-greedy policy
+#we will use a random number generator to decide if we will explore or exploit
+#if the random number is less than epsilon, we will explore
+#if the random number is greater than epsilon, we will exploit
+function policy(state, i)
+    if rand() < epsilon
+        #explore
+        return rand(1:2)
+    else
+        #exploit
+        return argmax([Qπ(state, i)])
     end
+end
+
 
 
     #action value estimate by graph embedding, these are learnable parameter
 
     # μi is a feature vector of a member i for i = 1 to nm 
 
-μ̂ = Matrix{Float64}(undef, nf, nm)
+μ̂  = Matrix{Float64}(undef, nf, nm)
 
-h1 = θ1 * w
-h2 = θ2 * sum(j = 1 to 2 ) ReLU(θ3 * v[i,j])
-h3 = θ4 * mu(i) at t 
-h4 = θ5 * sum(j = 1 to 2 ) ReLU(θ6 *  sum( mu k from k = set of members connected to i at t)
-phi i j is the set of indices of members connecting to j th  end of member i. And does not include i itself) 
+#should embed this into graph now 
+(xi, xj, e) -> xi .+ xj
+function updateMember()
+    #for edge (member) i
+    h1 = θ1 * w[:,i]
+    h2 = θ2* sum( NNlib.relu.( θ3 *xi , θ3*xj ) )
+    h3 = θ4 * μ
+
+
+    return NNlib.relu.( h1 + h2 + h3 + h4) 
+end
+
+
+
+#look at each i 
+for i in range(nm) 
+    μi_old = zeros(nf)
+    h1 = θ1 * w[:,i]
+    h2 = θ2* sum( NNlib.relu.( θ3 *xi , θ3*xj ) )
+    for _ in range(4)
+
+        h3 = θ4 * μi_old
+        h4 = 0.0 #initiate
+        sum_outer = 0.0
+        for j in range(2)
+            sum_inner = 0.0
+            #j is the end of the member i
+            #phi i j is the set of indices of members connecting to j th  end of member i. And does not include i itself)
+            for k in eachindex(node_conected to the J end)
+                element_number = node_points[elements[i][j]]
+                if element_number != i
+                    sum_inner += μ[:,element_number]
+                end
+                sum_inner= NNlib.relu( sum_inner )
+            
+            end
+            sum_outer += sum_inner
+        end
+        h4 = θ5 * sum( NNlib.relu.( θ6 *μi_old + θ6*) )
+        ui_old = ui_new
+
+    end
+    μ̂[:,i] = ui_new
+
+# phi i j is the set of indices of members connecting to j th  end of member i. And does not include i itself) 
 
 
 using t = 0 to 4 (iterate 4 times)
@@ -265,16 +301,15 @@ for i in range(nm)
     û[:,i] = ui
 end
 #introducing 2 more parameters
-θ7 = Matrix{Float64}(undef, 2*nf)
-θ8 = Matrix{Float64}(undef, nf, nf)
-θ9 = Matrix{Float64}(undef, nf, nf)
 
-Q = θ7' ( ReLU( θ8 * sum i = 1 to nm of [u(i) ; θ9*ui))
+Q = θ7' ( NNlib.relu( θ8 * sum i = 1 to nm of [u(i) ; θ9*ui))
 
 
 Θ = [θ1 ; θ2 ; θ3 ; θ4 ; θ5 ; θ6 ; θ7 ; θ8 ; θ9]
 
 #Q learning using the embeded features
+
+
 Q(s,a) = Q(s,a) + α * (r(s') + γ * max(Q(s',a)) - Q(s,a))
 
 # the problem becomes 
