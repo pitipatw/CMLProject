@@ -20,8 +20,17 @@
 # .
 # .
 # nL+4 Stress safety ratio (load case nL)
+using ReinforcementLearning
+using Flux
 using Asap
+include("GS.jl")
 #pre processing
+
+σbar =   200.0 #N/mm2
+δbar = 100.0 #*(max())
+E    = 2.0e5 #N/mm2
+#initial cross section area 
+A0 = 1000.0 # mm2
 
 node_points = Dict{Int64,Vector{Float64}}()
 node_counter = 0
@@ -43,14 +52,14 @@ for i in sort(collect(keys(node_points)))
     println(node_points[i])
 end
 
-GS1 = getGS(node_points)
+GS1 = getGS(node_points, 1.5)
 
 #using Asap format here
 #random 2 numbers from 1 to 5 
 # node_points = Dict{Int64,Vector{Float64}}()
 n1 = rand(1:2) 
 n2 = rand(4:5)  
-println(n1,n2)
+println(n1," & ",n2)
 
 # for 5x5 the right most dof are from dof = 42 44 46 48 50
 load_point = rand( [ 42 44 46 48 50 ] )
@@ -69,7 +78,7 @@ end
 
 load1 = [Asap.NodeForce(nodes[Int(load_point/2)], [ 0., -load_mag, 0.])]
 
-sec = Asap.TrussSection( 1000.0, 2.0e5)
+sec = Asap.TrussSection( A0, E)
 
 GS1 = getGS(node_points, 1.5)
 elements = Vector{Asap.TrussElement}()
@@ -101,18 +110,20 @@ println(maximum(σ))
 #number of episodes
 nE = 5000
 γ = 0.99
-nf = 100
 
 
-elements[1].section.A = 1e-6
 
-from model, elements and node, compute state.
+# elements[1].section.A = 1e-6
 
-put model, elements, nodes into v andd w form 
+# from model, elements and node, compute state.
 
+# put model, elements, nodes into v andd w form 
+
+# v = Matrix{Float64}(undef, 1, 3)
 v = []
-w = []
+w = [] # Matrix{Float64}()
 for i in eachindex(nodes)
+    println(i)
     vi = []
     if sum(nodes[1].dof) == 0
         push!(vi, 1)
@@ -126,56 +137,93 @@ for i in eachindex(nodes)
     # push!(vi , node[i].reaction[1])
     # push!(vi , node[i].reaction[2])
     #has to be concat column wise
-    push!(v, vi)
+    if i == 1 
+        v = vi
+    else
+        v = hcat(v,vi)
+    end
+    # push!(v, vi)
 end
 
+exist_list = ones(length(elements))
 for i in eachindex(elements)
     wi = []
-    push!(wi, cos(elements[i].\))
-    push!(wi, sin(elements[i].θ))
-    push!(wi, elements[i].L)
-    push!(wi, elements[i].section.A)
-    push!(wi, elements[i].forces[1]/elements[i].section.A)
-    push!(w, wi)
+    push!(wi, cos(elements[i].Ψ))
+    push!(wi, sin(elements[i].Ψ))
+    push!(wi, elements[i].length)
+    push!(wi, exist_list[i])
+    push!(wi, elements[i].forces[1]/elements[i].section.A/σbar)
+    #push!(wi, elements[i].forces[2]/elements[i].section.A/σbar)
+    # push!(w, wi)
+    if i == 1
+        w = wi
+    else
+        w = hcat(w,wi)
+    end
 end
+
+#now we have w and v
+
 
 #generate Ground Stucture based on set of node points
 # use Robar's function
 
 # speciy upper-bound values for stress and displacement
-σbar =   200.0 #N/mm2
-δbar = 100.0*(max()) nothing
-E    = 2.0e5 #N/mm2
+
 # specify graph embedding class
 # nodes state
 
 nL = 2 #number of load cases
-nd = 2* (numberofnodes) # number of total dof
-nm = numberofmembers # number of members
-nf = xxx # size of the feature vector of a member 
+nd = 2 * length(nodes) # number of total dof
+nm = length(elements) # number of members
+nf = 100 # size of the feature vector of a member 
 #nf obtain through trial and error.
 
 
 
-#initial cross section area 
-A0 = 1000.0 # mm2
+
 
 
 
 #reward function 
-function reward( Le, σ , δ,)
+
+function reward( i::Int32, σbar::Float32 , δbar::Float32,model::Asap.Model, w::Array{Float32,2})
     #check stress constrain
-    
-
+    # i is the element index that was removed. 
+  
     #check displacement constrain
+    #check max stress and max displacement
+    maxσ = maximum(w[5,:])
+    maxδ = maximum(model.u)
 
-    if those constrain are violated σ/ σ̄ > 1 or δ/ δ̄ > 1
+    if maxσ > σbar || maxδ > δbar
         return -1
-    else 
-        return Le * (1- max( σ/σ̂ , δ/δ̂))
-
+    else
+        Le = w[3,i]
+        return Le * (1 - maxσ/σbar)
     end
+end
 
+ϵ = 0.1
+a = EpsilonGreedyExplorer(ϵ)
+
+
+#initialize the learning parameters
+θ1 = Matrix{Float64}(undef, nf, nL + 4)
+θ2 = Matrix{Float64}(undef, nf, nf)
+θ3 = Matrix{Float64}(undef, nf, 2*nL+1)
+θ4 = Matrix{Float64}(undef, nf, nf)
+θ5 = Matrix{Float64}(undef, nf, nf)
+θ6 = Matrix{Float64}(undef, nf, nf)
+θ7 = Matrix{Float64}(undef, 2*nf,1)
+θ8 = Matrix{Float64}(undef, nf, nf)
+θ9 = Matrix{Float64}(undef, nf, nf)
+
+function getΘ(θ1::Matrix{Float64}, θ2::Matrix{Float64}, θ3::Matrix{Float64}, θ4::Matrix{Float64}, θ5::Matrix{Float64}, θ6::Matrix{Float64}, θ7::Matrix{Float64}, θ8::Matrix{Float64}, θ9::Matrix{Float64})
+    #why am I doing this LOL 
+    return [θ1;θ2;θ3;θ4;θ5;θ6;θ7;θ8;θ9]
+end
+   
     #policy
     #policy is a function that takes in a state and outputs an action
     #policy will input a state and i and get the hiest value of reward. 
@@ -195,13 +243,7 @@ function reward( Le, σ , δ,)
     end
 
 
-    #action value estimate by graph embedding, these are learnable parameters.
-    θ1 = Matrix{Float64}(undef, nf, nL + 4)
-    θ2 = Matrix{Float64}(undef, nf, nf)
-    θ3 = Matrix{Float64}(undef, nf, 2*nL+1)
-    θ4 = Matrix{Float64}(undef, nf, nf)
-    θ5 = Matrix{Float64}(undef, nf, nf)
-    θ6 = Matrix{Float64}(undef, nf, nf)
+    #action value estimate by graph embedding, these are learnable parameter
 
     # μi is a feature vector of a member i for i = 1 to nm 
 

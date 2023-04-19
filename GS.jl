@@ -61,7 +61,7 @@ function getGS(lx::Float64,ly::Float64,lz::Float64 ,nx::Int64,ny::Int64,nz::Int6
     return GS
 end
 
-function getGS(node_points::Dict{Int64,Vector{Float64}})
+function getGS(node_points::Dict{Int64,Vector{Float64}}, Lmax::Float64)
     GS = Dict{Int64,Vector{Int64}}()
     global element_counter = 0 
     for i in eachindex(node_points)
@@ -75,10 +75,14 @@ function getGS(node_points::Dict{Int64,Vector{Float64}})
                 #unit vector from current_pt to next_pt
                 uv = (next_pt - current_pt)/norm(next_pt - current_pt)
                 dis = norm(next_pt - current_pt)
+                if dis > Lmax
+                    continue
+                end
                 # println("---")
                 # println("i ",i)
                 # println("j ",j)
                 #check if uv is in lov
+
                 check_uv = false
                 for k in keys(lov)
                     if uv ≈ k
