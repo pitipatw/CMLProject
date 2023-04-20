@@ -22,10 +22,7 @@
 # nL+4 Stress safety ratio (load case nL)
 using ReinforcementLearning
 using Flux
-using TopOpt
-# using Asap
-
-
+using Asap
 include("GS.jl")
 #pre processing
 
@@ -54,51 +51,59 @@ for i in sort(collect(keys(node_points)))
     println(i)
     println(node_points[i])
 end
-Lmax = 1.5
-GS1 = getGS(node_points, Lmax)
-
-###### FROM TopOpt.jl ######
-# 2D
-ndim = 2
-node_points, elements, mats, crosssecs, fixities, load_cases = load_truss_json(
-    joinpath(@__DIR__, "tim_$(ndim)d.json")
-);
-
-#need to generate these
-node_points
-elements
-fixities
-load_cases
-mats
-crosssecs
-###
-
-
-ndim, nnodes, ncells = length(node_points[1]), length(node_points), length(elements)
-loads = load_cases["0"]
-problem = TrussProblem(
-    Val{:Linear}, node_points, elements, loads, fixities, mats, crosssecs
-);
-
-solver = FEASolver(Direct, problem; xmin=xmin)
-
-
-ts = TrussStress(solver)
-σ = ts(PseudoDensities(crosssecs))
 
 GS1 = getGS(node_points, 1.5)
 
-node2elements = Dict{Int64,Vector{Int64}}()
-for i in eachindex(elements)
-    for j in eachindex(elements[i])
-        if haskey(node2elements, elements[i][j])
-            push!(node2elements[elements[i][j]], i)
-        else
-            node2elements[elements[i][j]] = [i]
-        end
+#using Asap format here
+#random 2 numbers from 1 to 5 
+# node_points = Dict{Int64,Vector{Float64}}()
+n1 = rand(1:2) 
+n2 = rand(4:5)  
+println(n1," & ",n2)
+
+# for 5x5 the right most dof are from dof = 42 44 46 48 50
+load_point = rand( [ 42 44 46 48 50 ] )
+load_mag = 1.0 #kN
+
+nodes = Vector{Asap.TrussNode}()
+     #Vector{Any}(undef, length(node_points))
+for i in range(1,25)
+    if i == n1 || i == n2
+        push!(nodes,Asap.TrussNode(node_points[i], :pinned))
+    else
+        push!(nodes,Asap.TrussNode(node_points[i], :zfixed))
     end
 end
 
+
+load1 = [Asap.NodeForce(nodes[Int(load_point/2)], [ 0., -load_mag, 0.])]
+
+sec = Asap.TrussSection( A0, E)
+
+GS1 = getGS(node_points, 1.5)
+elements = Vector{Asap.TrussElement}()
+
+for i in eachindex(GS1)
+    push!(elements,Asap.TrussElement(nodes ,[GS1[i][1], GS1[i][2] ]  ,sec))
+end
+
+#assemble model
+model = Asap.TrussModel(nodes, elements, load1)
+
+#solve model
+Asap.solve!(model)
+
+#extract information
+println(model.u)
+println(elements[1].forces)
+println(nodes[1].reaction)
+
+σ = []
+for i in eachindex(elements)
+    push!(σ, elements[i].forces[1]/elements[i].section.A)
+end
+
+println(maximum(σ))
 #Done structural calculation.
 
 #training episodes 
@@ -241,13 +246,25 @@ end
 μ̂  = Matrix{Float64}(undef, nf, nm)
 
 #should embed this into graph now 
+(xi, xj, e) -> xi .+ xj
+function updateMember()
+    #for edge (member) i
+    h1 = θ1 * w[:,i]
+    h2 = θ2* sum( NNlib.relu.( θ3 *xi , θ3*xj ) )
+    h3 = θ4 * μ
+
+
+    return NNlib.relu.( h1 + h2 + h3 + h4) 
+end
+
+
 
 #look at each i 
 for i in range(nm) 
     μi_old = zeros(nf)
     h1 = θ1 * w[:,i]
     h2 = θ2* sum( NNlib.relu.( θ3 *xi , θ3*xj ) )
-    for _ in range(4) #run this 4 times
+    for _ in range(4)
 
         h3 = θ4 * μi_old
         h4 = 0.0 #initiate
@@ -256,16 +273,17 @@ for i in range(nm)
             sum_inner = 0.0
             #j is the end of the member i
             #phi i j is the set of indices of members connecting to j th  end of member i. And does not include i itself)
-            for k in eachindex(node2elements[i][j])
-                element_number = node2elements[i,j,k]
+            for k in eachindex(node_conected to the J end)
+                element_number = node_points[elements[i][j]]
                 if element_number != i
                     sum_inner += μ[:,element_number]
                 end
                 sum_inner= NNlib.relu( sum_inner )
+            
             end
             sum_outer += sum_inner
         end
-        h4 = θ5 * sum_outer
+        h4 = θ5 * sum( NNlib.relu.( θ6 *μi_old + θ6*) )
         ui_old = ui_new
 
     end
