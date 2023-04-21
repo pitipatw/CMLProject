@@ -3,7 +3,7 @@ using TopOpt, Zygote, Flux
 include("GS.jl")
 
 E = 1.0 # Young’s modulus
-v = 0.3 # Poisson’s ratio
+ v = 0.3 # Poisson’s ratio
 f = 1.0 # downward force
 els = (160, 40)
 

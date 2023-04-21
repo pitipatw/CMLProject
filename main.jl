@@ -26,10 +26,13 @@ using TopOpt
 # using Asap
 
 
+#dispatch function for TrussFea
++(a::TrussFEACrossSec, b::Float64) = TrussFEACrossSec(a.A + b, a.E, a.v) #? what the heck? 
+
 include("GS.jl")
 #pre processing
 
-σbar =   200.0 #N/mm2
+σbar = 200.0 #N/mm2
 δbar = 100.0 #*(max())
 E    = 2.0e5 #N/mm2
 #initial cross section area 
@@ -287,7 +290,7 @@ end
 Q = θ7' ( NNlib.relu( θ8 * sum i = 1 to nm of [u(i) ; θ9*ui))
 
 
-Θ = [θ1 ; θ2 ; θ3 ; θ4 ; θ5 ; θ6 ; θ7 ; θ8 ; θ9]
+Θ = [θ1 ; θ2 ; θ3 ; θ4 ; θ5 ; θ6 ; θ7 ; θ8 ; θ9] # not needed
 
 #Q learning using the embeded features
 
@@ -297,6 +300,7 @@ Q(s,a) = Q(s,a) + α * (r(s') + γ * max(Q(s',a)) - Q(s,a))
 # the problem becomes 
 minimize F(Θ) = ( r(s') + γ * max(Q(s',a; Θ̃)) - Q(s,a; Θ)) ^2
 
+opt = RMSProp()
 #start training 
 
 # there should be a truss analysis functoin to get displacement of each dof and stress of each memeber
