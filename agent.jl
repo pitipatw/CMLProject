@@ -1,8 +1,9 @@
+#Python code to Julia
 # import os
 # import numpy as np
-# np.random.seed(0)
+
 # import random
-# random.seed(0)
+
 # import copy
 # import torch
 # torch.manual_seed(0)
@@ -10,6 +11,16 @@
 # from dataclasses import dataclass
 # import pickle
 # import zlib
+
+using Flux
+using GraphNeuralNetworks
+using LinearAlgebra
+using Random, Distributions
+
+#Initialize random
+# np.random.seed(0)
+
+# random.seed(0)
 
 ### User specified parameters ###
 INIT_MEAN = 0.0 ## mean of initial training parameters
@@ -28,146 +39,207 @@ struct Experience
 	c_next ::Matrix{Float32} # np.ndarray
 	v_next ::Matrix{Float32} #torch.Tensor
 	w_next ::Matrix{Float32} #torch.Tensor
-	done: bool
-	infeasible_action: np.ndarray
+	done :: Bool
+	infeasible_action:: Matrix{Float32} #np.ndarray
+end
 
-@dataclass
-class Temp_Experience:
-	c: np.ndarray # connectivity
-	v: torch.Tensor
-	w: torch.Tensor
-	action: np.int32
-	reward: np.float32
+# @dataclass
+struct Temp_Experience #class Temp_Experience:
+	c::Matrix{Float32} #np.ndarray # connectivity
+	v::Matrix{Float32} # torch.Tensor
+	w::Matrix{Float32} # torch.Tensor
+	action::Int32 # np.int32
+	reward::Float32# np.float32
+end
 
-class NN(torch.nn.Module):
-	def __init__(self,n_node_inputs,n_edge_inputs,n_feature_outputs,n_action_types,batch_size,use_gpu):
-		super(NN,self).__init__()
-		self.l1_1 = torch.nn.Linear(n_edge_inputs,n_feature_outputs,False)
-		self.l1_2 = torch.nn.Linear(n_feature_outputs,n_feature_outputs)
-		self.l1_3 = torch.nn.Linear(n_node_inputs,n_feature_outputs)
-		self.l1_4 = torch.nn.Linear(n_feature_outputs,n_feature_outputs)
-		self.l1_5 = torch.nn.Linear(n_feature_outputs,n_feature_outputs)
-		self.l1_6 = torch.nn.Linear(n_feature_outputs,n_feature_outputs)
+#class NN(torch.nn.Module):
+Base.@kwdef mutable struct NN
+		# def __init__(self,n_node_inputs,n_edge_inputs,n_feature_outputs,n_action_types,batch_size,use_gpu):
+	# 	super(NN,self).__init__()
+	n_node_inputs::Int32
+	n_edge_inputs::Int32
+	n_feature_outputs::Int32
+	n_action_types::Int32
+	batch_size::Int32
+	use_gpu::Bool
+	l1_1::Flux.Dense
+	l1_2::Flux.Dense
+	l1_3::Flux.Dense
+	l1_4::Flux.Dense
+	l1_5::Flux.Dense
+	l1_6::Flux.Dense
+	l2_1::Flux.Dense
+	ActivationF::Function
+	device::String
 
-		self.l2_1 = torch.nn.Linear(n_feature_outputs*2,n_action_types,bias=USE_BIAS)
+	function NN(;n_node_inputs::Int32,n_edge_inputs::Int32,n_feature_outputs::Int32,n_action_types::Int32,batch_size::Int32,use_gpu::Bool)
+		l1_1 = Flux.Dense(n_edge_inputs,n_feature_outputs ,bias = false ;init = Flux.glorot_normal)    # self.l1_1 = torch.nn.Linear(n_edge_inputs,n_feature_outputs,False)
+		l1_2 = Flux.Dense(n_feature_outputs,n_feature_outputs ,bias = false ;init = Flux.glorot_normal)# self.l1_2 = torch.nn.Linear(n_feature_outputs,n_feature_outputs)
+		l1_3 = Flux.Dense(n_node_inputs,n_feature_outputs ,bias = false;init = Flux.glorot_normal) 	   # self.l1_3 = torch.nn.Linear(n_node_inputs,n_feature_outputs)
+		l1_4 = Flux.Dense(n_feature_outputs,n_feature_outputs ,bias = false;init = Flux.glorot_normal) # self.l1_4 = torch.nn.Linear(n_feature_outputs,n_feature_outputs)
+		l1_5 = Flux.Dense(n_feature_outputs,n_feature_outputs ,bias = false;init = Flux.glorot_normal) # self.l1_5 = torch.nn.Linear(n_feature_outputs,n_feature_outputs)
+		l1_6 = Flux.Dense(n_feature_outputs,n_feature_outputs ,bias = false;init = Flux.glorot_normal) # self.l1_6 = torch.nn.Linear(n_feature_outputs,n_feature_outputs)
+		l2_1 = Flux.Dense(n_feature_outputs,n_action_types ,bias = false;init = Flux.glorot_normal) # self.l2_1 = torch.nn.Linear(n_feature_outputs,n_action_types)
+		ActivationF = leakyrelu
+		if use_gpu
+			#self.to('cuda') not sure about this one
+			device = Flux.gpu # self.device = torch.device('cuda')
+		else
+			#self.to('cpu')
+			device = Flux.cpu # self.device = torch.device('cpu')
+		end
+
+		new(n_node_inputs,n_edge_inputs,n_feature_outputs,n_action_types,batch_size,use_gpu,l1_1,l1_2,l1_3,l1_4,l1_5,l1_6,l2_1,ActivationF)
+	end
 		# self.l2_2 = torch.nn.Linear(n_feature_outputs,n_feature_outputs,bias=USE_BIAS)
 		# self.l2_3 = torch.nn.Linear(n_feature_outputs,n_feature_outputs,bias=USE_BIAS)
+	# batch_size = batch_size
+		# self.batch_size = batch_size
+	#  self.ActivationF = torch.nn.LeakyReLU(0.2)
 
-		self.batch_size = batch_size
-		self.ActivationF = torch.nn.LeakyReLU(0.2)
+	# Initialize_weight!() #this is another function 
 
-		self.Initialize_weight()
+	# self.n_feature_outputs = n_feature_outputs
 
-		self.n_feature_outputs = n_feature_outputs
-		if use_gpu:
-			self.to('cuda')
-			self.device = torch.device('cuda')
-		else:
-			self.to('cpu')
-			self.device = torch.device('cpu')
 
-	def Connectivity(self,connectivity,n_nodes):
-		'''
-		connectivity[n_edges,2]
-		'''
-		n_edges = connectivity.shape[0]
-		order = np.arange(n_edges)
-		adjacency = torch.zeros(n_nodes,n_nodes,dtype=torch.float32,device=self.device,requires_grad=False)
-		incidence = torch.zeros(n_nodes,n_edges,dtype=torch.float32,device=self.device,requires_grad=False)
+end
 
-		for i in range(2):
-			adjacency[connectivity[:,i],connectivity[:,(i+1)%2]] = 1
-		incidence[connectivity[:,0],order] = -1
-		incidence[connectivity[:,1],order] = 1
-
-		incidence_A = torch.abs(incidence)#.to_sparse()
-		incidence_1 = (incidence==-1).type(torch.float32)
-		incidence_2 = (incidence==1).type(torch.float32)
-
-		return incidence_A,incidence_1,incidence_2,adjacency
-
-	def Initialize_weight(self):
-		for m in self._modules.values():
-			if isinstance(m,torch.nn.Linear):
-				torch.nn.init.normal_(m.weight,mean=0,std=INIT_STD)
-
-	def Output_params(self):
-		for name,m in self.named_modules():
-			if isinstance(m,torch.nn.Linear):
-				print(name)
-				np.savetxt(f"agent_params/{name}_w.npy",m.weight.detach().to('cpu').numpy())
-				if m.bias != None:
-					np.savetxt(f"agent_params/{name}_b.npy",m.bias.detach().to('cpu').numpy())
-
-	def mu(self,v,mu,w,incidence_A,incidence_1,incidence_2,adjacency,mu_iter):
-		'''
-		v (array[n_nodes,n_node_features])
-		mu(array[n_edges,n_edge_out_features])
-		w (array[n_edges,n_edge_in_features])
-		'''
-		if mu_iter == 0:
-			h1 = self.l1_1.forward(w)
-			h2_0 = self.ActivationF(self.l1_3.forward(v))
-			h2 = self.l1_2.forward(torch.mm(incidence_A.T,h2_0))
-			mu = self.ActivationF(h1+h2)
-
-		else:
-			h3 = self.l1_6.forward(mu)
-			h4_0 = torch.mm(incidence_A,mu)
-			n_connect_edges_1 = torch.clip(torch.sum(torch.mm(adjacency.T,incidence_1),axis=0).repeat(self.n_feature_outputs,1).T-1,1)
-			n_connect_edges_2 = torch.clip(torch.sum(torch.mm(adjacency.T,incidence_2),axis=0).repeat(self.n_feature_outputs,1).T-1,1)
-			h4_1 = self.l1_4.forward(torch.mm(incidence_1.T,h4_0)-mu)/n_connect_edges_1
-			h4_2 = self.l1_4.forward(torch.mm(incidence_2.T,h4_0)-mu)/n_connect_edges_2
-			h4 = self.l1_5.forward(self.ActivationF(h4_1)+self.ActivationF(h4_2))
-			mu = self.ActivationF(h3+h4)
-		return mu
-		
-	def Q(self,mu,n_edges):
-		
-		if type(n_edges) is int: # normal operation
-			mu_sum = torch.sum(mu,axis=0)
-			mu_sum = mu_sum.repeat(n_edges,1)
-		else: # for mini-batch training
-			mu_sum = torch.zeros((n_edges[-1],self.n_feature_outputs),dtype=torch.float32,device=self.device)
-			for i in range(self.batch_size):
-				mu_sum[n_edges[i]:n_edges[i+1],:] = torch.sum(mu[n_edges[i]:n_edges[i+1],:],axis=0)
-
-		Q = self.l2_1(torch.cat((mu_sum,mu),1))
-		return Q
-
-	def Forward(self,v,w,connectivity,n_mu_iter=3,nm_batch=None):
-	   
-		'''
-		v[n_nodes,n_node_in_features]
-		w[n_edges,n_edge_in_features]
-		connectivity[n_edges,2]
-		nm_batch[BATCH_SIZE] : int
-		'''
-		IA,I1,I2,D = self.Connectivity(connectivity,v.shape[0])
-
-		if type(v) is np.ndarray: 
-			v = torch.tensor(v,dtype=torch.float32,device=self.device,requires_grad=False)
-		if type(w) is np.ndarray:
-			w = torch.tensor(w,dtype=torch.float32,device=self.device,requires_grad=False)
-		mu = torch.zeros((connectivity.shape[0],self.n_feature_outputs),device=self.device)
-
-		for i in range(n_mu_iter):
-			mu = self.mu(v,mu,w,IA,I1,I2,D,mu_iter=i)
-			# print("iter {0}: {1}".format(i,mu.norm(p=2)))
-		if nm_batch is None:
-			Q = self.Q(mu,w.shape[0])
-		else:
-			Q = self.Q(mu,nm_batch)
-
-		Q = Q.flatten()
-
-		return Q
-
-	def Save(self,filename,directory=""):
-		torch.save(self.to('cpu').state_dict(),os.path.join(directory,filename))
+# the rest of the function down here can be put outside the type definition.
+function Connectivity(self::NN,connectivity::Matrix{Int32},n_nodes::Int32)
 	
-	def Load(self,filename,directory=""):
-		self.load_state_dict(torch.load(os.path.join(directory,filename)))
+	# connectivity[n_edges,2]
+	n_edges = size(connectivity)[1] # n_edges = connectivity.shape[0]
+	order = 1:n_edges # order = np.arange(n_edges)
+	adjacency = zeros(Float32,n_nodes,n_nodes) |> self.device # adjacency = torch.zeros(n_nodes,n_nodes,dtype=torch.float32,device=self.device,requires_grad=False)
+	incidence = zeros(Float32,n_nodes,n_edges) |> self.device # incidence = torch.zeros(n_nodes,n_edges,dtype=torch.float32,device=self.device,requires_grad=False)
+
+	for i in 1:2
+		adjacency[connectivity[:,i],connectivity[:,(i+1)%2]] = 1
+	end
+
+	incidence[connectivity[:,1],order] = -1
+	incidence[connectivity[:,2],order] = 1
+
+	incidence_A = abs.(incidence) # incidence_A = torch.abs(incidence)#.to_sparse()
+	incidence_A = torch.abs(incidence)#.to_sparse()
+	incidence_1 = (incidence.==-1) |> Float32 |> self.device # incidence_1 = (incidence==-1).type(torch.float32)
+	incidence_2 = (incidence.==1)  |> Float32 |> self.device # incidence_2 = (incidence==1).type(torch.float32)
+
+	return incidence_A,incidence_1,incidence_2,adjacency
+end
+
+	
+# function Initialize_weight!(self)
+# 	# initialize weights using normalization with the predefined std and mean
+
+# end
+
+	# function Output_params(self)
+	# 	for name,m in self.named_modules()
+	# 		if isinstance(m,torch.nn.Linear)
+	# 			print(name)
+	# 			np.savetxt(f"agent_params/{name}_w.npy",m.weight.detach().to('cpu').numpy())
+	# 			if m.bias != nothing
+	# 				np.savetxt(f"agent_params/{name}_b.npy",m.bias.detach().to('cpu').numpy())
+	# 			end
+	# 		end
+	# 	end
+	# end
+
+function getμ(self::NN,v::Matrix{Int32},μ::Matrix{Int32} ,w::Matrix{Int32},incidence_A::Matrix{Int32},incidence_1::Matrix{Int32},incidence_2::Matrix{Int32},adjacency::Matrix{Int32}, μ_iter::Int32)
+	
+	# v (array[n_nodes,n_node_features])
+	# mu(array[n_edges,n_edge_out_features])
+	# w (array[n_edges,n_edge_in_features])
+
+	if μ_iter == 0
+		h1   = self.l1_1(w)
+		h2_0 = self.ActivationF(self.l1_3(v))
+		h2   = self.l1_2(incidence_A' * h2_0)
+		μ    = self.ActivationF(h1 + h2)
+
+	else
+		h3   = self.l1_6(μ)
+		h4_0 = incidence_A * μ
+
+		n_connect_edges_1 = clamp( repeat(sum(adjacency' * incidence_1,dims=1), outer = (self.n_feature_outputs,1))'-1,1,Inf)
+		n_connect_edges_2 = clamp( repeat(sum(adjacency' * incidence_2,dims=1), outer = (self.n_feature_outputs,1))'-1,1,Inf)
+		# n_connect_edges_1 = torch.clip(torch.sum(torch.mm(adjacency.T,incidence_1),axis=0).repeat(self.n_feature_outputs,1).T-1,1)
+		# n_connect_edges_2 = torch.clip(torch.sum(torch.mm(adjacency.T,incidence_2),axis=0).repeat(self.n_feature_outputs,1).T-1,1)
+		h4_1 = (self.l1_4(incidence_1' * h4_0) - μ ) /n_connect_edges_1
+		h4_2 = (self.l1_4(incidence_2' * h4_0) - μ ) /n_connect_edges_2
+		h4 = self.l1_5(self.ActivationF(h4_1) + self.ActivationF(h4_2))
+		μ = self.ActivationF(h3 + h4)
+		# h4_1 = self.l1_4.forward(torch.mm(incidence_1.T,h4_0)-mu)/n_connect_edges_1
+		# h4_2 = self.l1_4.forward(torch.mm(incidence_2.T,h4_0)-mu)/n_connect_edges_2
+		# h4 = self.l1_5.forward(self.ActivationF(h4_1)+self.ActivationF(h4_2))
+		# mu = self.ActivationF(h3+h4)
+	end
+
+	return μ
+end
+		
+function getQ(self::NN,μ::Matrix{Int32},n_edges::Int32)
+	
+	if typeof(n_edges) == Int # normal operation
+		μ_sum = sum(mu,dims=1)
+		μ_sum = repeat(μ_sum,outer = (n_edges, 1))
+	else # for mini-batch training
+		μ_sum = zeros(Float32, (n_edges[-1],self.n_feature_outputs)) |> self.device #
+		# μ_sum = torch.zeros((n_edges[-1],self.n_feature_outputs),dtype=torch.float32,device=self.device)
+		for i in 1:self.batch_size
+			μ_sum[n_edges[i]:n_edges[i+1],:] = sum(μ[n_edges[i]:n_edges[i+1],:],dims=1)
+		end
+	end
+
+	Q = self.l2_1(torch.cat((μ_sum,μ),dims=2))
+	return Q
+end
+
+function Forward(self::NN,v::Matrix{Int32},w::Matrix{Int32},connectivity::Matrix{Int32},n_mu_iter=3,nm_batch=None)
+	   
+	# v[n_nodes,n_node_in_features]
+	# w[n_edges,n_edge_in_features]
+	# connectivity[n_edges,2]
+	# nm_batch[BATCH_SIZE] : int
+
+	IA,I1,I2,D = self.Connectivity(connectivity,v.shape[0])
+
+	# if type(v) is np.ndarray
+	# 	v = torch.tensor(v,dtype=torch.float32,device=self.device,requires_grad=False)
+	# end
+
+	# if type(w) is np.ndarray
+	# 	w = torch.tensor(w,dtype=torch.float32,device=self.device,requires_grad=False)
+	# end
+	μ = zeros(Float32, (connectivity.shape[0],self.n_feature_outputs)) |> self.device
+	# mu = torch.zeros((connectivity.shape[0],self.n_feature_outputs),device=self.device)
+
+	for i in range(n_mu_iter)
+		mu = getμ(self,v,μ,w,IA,I1,I2,D,mu_iter=i)
+		# print("iter {0}: {1}".format(i,mu.norm(p=2)))
+	end
+	
+	if nm_batch == None
+		Q = getQ(self,μ,size(w)[1])
+	else
+		Q = getQ(self,μ,nm_batch)
+	end
+	Q = Q.flatten()
+
+	return Q
+end
+
+function Save(self,filename,directory=""):
+	torch.save(self.to('cpu').state_dict(),os.path.join(directory,filename))
+end
+function Load(self,filename,directory=""):
+	self.load_state_dict(torch.load(os.path.join(directory,filename)))
+end
+
+
+# end of class NN
+
 
 class Brain():
 	def __init__(self,n_node_inputs,n_edge_inputs,n_feature_outputs,n_action_types,use_gpu):
