@@ -13,9 +13,13 @@
 # import zlib
 
 using Flux
+using Flux.Optimise
+using DataStructures
+#using CuArrays
 using GraphNeuralNetworks
 using LinearAlgebra
 using Random, Distributions
+
 
 #Initialize random
 # np.random.seed(0)
@@ -70,7 +74,7 @@ Base.@kwdef mutable struct NN
 	l1_6::Flux.Dense
 	l2_1::Flux.Dense
 	ActivationF::Function
-	device::String
+	device::Any
 
 	function NN(;n_node_inputs::Int32,n_edge_inputs::Int32,n_feature_outputs::Int32,n_action_types::Int32,batch_size::Int32,use_gpu::Bool)
 		l1_1 = Flux.Dense(n_edge_inputs,n_feature_outputs ,bias = false ;init = Flux.glorot_normal)    # self.l1_1 = torch.nn.Linear(n_edge_inputs,n_feature_outputs,False)
@@ -216,7 +220,7 @@ function Forward(self::NN,v::Matrix{Int32},w::Matrix{Int32},connectivity::Matrix
 	# mu = torch.zeros((connectivity.shape[0],self.n_feature_outputs),device=self.device)
 
 	for i in range(n_mu_iter)
-		mu = getμ(self,v,μ,w,IA,I1,I2,D,mu_iter=i)
+		μ = getμ(self,v,μ,w,IA,I1,I2,D,mu_iter=i)
 		# print("iter {0}: {1}".format(i,mu.norm(p=2)))
 	end
 	
@@ -230,10 +234,11 @@ function Forward(self::NN,v::Matrix{Int32},w::Matrix{Int32},connectivity::Matrix
 	return Q
 end
 
-function Save(self,filename,directory=""):
+function Save(self,filename,directory="")
 	torch.save(self.to('cpu').state_dict(),os.path.join(directory,filename))
 end
-function Load(self,filename,directory=""):
+
+function Load(self,filename,directory="")
 	self.load_state_dict(torch.load(os.path.join(directory,filename)))
 end
 
@@ -241,173 +246,231 @@ end
 # end of class NN
 
 
-class Brain():
-	def __init__(self,n_node_inputs,n_edge_inputs,n_feature_outputs,n_action_types,use_gpu):
-		if use_gpu:
-			self.device = torch.device('cuda')
-		else:
-			self.device = torch.device('cpu')
-		self.n_node_inputs = n_node_inputs
-		self.n_edge_inputs = n_edge_inputs
-		self.batch_size = 32
-		self.model = NN(n_node_inputs,n_edge_inputs,n_feature_outputs,n_action_types,self.batch_size,use_gpu)
-		self.target_model = copy.deepcopy(self.model)
-		self.optimizer = torch.optim.Adam(self.model.parameters(),lr=1.0e-4) # RMSprop(self.model.parameters(),lr=1.0e-5)
+Base.@kwdef mutable struct Brain
+	device::Any #CuDevice
+	n_node_inputs::Int
+	n_edge_inputs::Int
+	batch_size::Int
+	model::NN
+	target_model::NN
+	optimizer::Adam
+	n_edge_action_type::Int
+	n_step::Int
+	gamma::Float64
+	nstep_gamma::Float64
+	temp_buffer::Deque
+	capacity::Int
+	buffer::Deque
+	tdfunc::Function
+	priority::Array{Float32,1}
+	max_priority::Float32
+	beta_scheduler::Function
+	store_count::Int
 
-		self.n_edge_action_type = n_action_types
-		self.n_step = 3
-		self.gamma = 1.0
-		self.nstep_gamma = np.power(self.gamma,self.n_step)
-		self.temp_buffer = deque(maxlen=self.n_step)
-		self.capacity = int(1E4)
-		self.buffer = deque([None for _ in range(self.capacity)],maxlen=self.capacity)
-		self.tdfunc = torch.nn.L1Loss(reduction='none')
-		self.priority = np.zeros(self.capacity,dtype=np.float32)
-		self.max_priority = 1.0
-		self.beta_scheduler = lambda progress: 0.4 + 0.6*progress
-		self.store_count = 0
-
-	def store_experience(self,c,v,w,action,reward,c_next,v_next,w_next,done,infeasible_action,stop):
-
-		v = torch.tensor(v,dtype=torch.float32,device=self.device,requires_grad=False)
-		w = torch.tensor(w,dtype=torch.float32,device=self.device,requires_grad=False)
-		v_next = torch.tensor(v_next,dtype=torch.float32,device=self.device,requires_grad=False)
-		w_next = torch.tensor(w_next,dtype=torch.float32,device=self.device,requires_grad=False)
-		self.temp_buffer.append(Temp_Experience(c,v,w,action,reward))
-
-		### Using Multistep learning ###
-
-		if done or stop:
-			for j in range(len(self.temp_buffer)):
-				nstep_return = np.sum([self.gamma ** (i-j) * self.temp_buffer[i].reward for i in range(j,len(self.temp_buffer))])
-				self.priority[0:-1], self.priority[-1] = self.priority[1:], self.max_priority
-				# self.buffer.append(zlib.compress(pickle.dumps(Experience(self.temp_buffer[j].c,self.temp_buffer[j].v,self.temp_buffer[j].w,self.temp_buffer[j].action,nstep_return,c_next,v_next,w_next,done,infeasible_action))))
-				self.buffer.append(Experience(self.temp_buffer[j].c,self.temp_buffer[j].v,self.temp_buffer[j].w,self.temp_buffer[j].action,nstep_return,c_next,v_next,w_next,done,infeasible_action))
-				self.store_count += 1
-			self.temp_buffer.clear()
-
-		elif len(self.temp_buffer) == self.n_step:
-			nstep_return = np.sum([self.gamma ** i * self.temp_buffer[i].reward for i in range(len(self.temp_buffer))])
-			self.priority[0:-1], self.priority[-1] = self.priority[1:], self.max_priority
-			# self.buffer.append(zlib.compress(pickle.dumps(Experience(self.temp_buffer[0].c,self.temp_buffer[0].v,self.temp_buffer[0].w,self.temp_buffer[0].action,nstep_return,c_next,v_next,w_next,done,infeasible_action))))
-			self.buffer.append(Experience(self.temp_buffer[0].c,self.temp_buffer[0].v,self.temp_buffer[0].w,self.temp_buffer[0].action,nstep_return,c_next,v_next,w_next,done,infeasible_action))			
-			self.store_count += 1
-
-
-	def sample_batch(self,progress):
-		p = self.priority/self.priority.sum()
-		indices = np.random.choice(self.capacity,p=p,replace=False,size=self.batch_size)
-
-		weight = np.power(p[indices]*self.capacity,-self.beta_scheduler(progress))
-		weight /= np.max(weight)
-
-		# batch = [pickle.loads(zlib.decompress(self.buffer[i])) for i in indices]
-		batch = [self.buffer[i] for i in indices]
-
-		c_batch = np.zeros((0,2),dtype=int)
-		v_batch = torch.cat([dat.v for dat in batch],dim=0)
-		w_batch = torch.cat([dat.w for dat in batch],dim=0)
-		a_batch = np.array([dat.action for dat in batch])
-		r_batch = torch.tensor([dat.reward for dat in batch],dtype=torch.float32,device=self.device,requires_grad=False)
-		c2_batch = np.zeros((0,2),dtype=int)
-		v2_batch = torch.cat([dat.v_next for dat in batch],dim=0)
-		w2_batch = torch.cat([dat.w_next for dat in batch],dim=0)
-		done_batch= torch.tensor([dat.done for dat in batch],dtype=bool,device=self.device,requires_grad=False)
-		infeasible_a_batch = np.concatenate([dat.infeasible_action for dat in batch],axis=0)
-		nm_batch = np.zeros(self.batch_size+1,dtype=int)
-		nm2_batch = np.zeros(self.batch_size+1,dtype=int)
-
-		nn = 0
-		nm = 0
-		for i in range(self.batch_size):
-			c_batch = np.concatenate((c_batch,batch[i].c+nn),axis=0)
-			nn += batch[i].v.shape[0]
-			nm += batch[i].w.shape[0]
-			nm_batch[i+1] = nm
-		a_batch += nm_batch[:-1]*self.n_edge_action_type
-
-		nn2 = 0
-		nm2 = 0
-		for i in range(self.batch_size):
-			c2_batch = np.concatenate((c2_batch,batch[i].c_next+nn2),axis=0)
-			nn2 += batch[i].v_next.shape[0]
-			nm2 += batch[i].w_next.shape[0]
-			nm2_batch[i+1] = nm2
-
-		return weight,indices,c_batch,v_batch,w_batch,a_batch,r_batch,c2_batch,v2_batch,w2_batch,done_batch,infeasible_a_batch,nm_batch,nm2_batch
-
-	def update_priority(self,indices,td_errors):
-		pri = np.power((np.abs(td_errors.detach().to('cpu').numpy()) + 1e-3),0.6)
-		self.priority[indices] = pri
-		self.max_priority = max(self.max_priority,np.max(pri))
-		return
-
-	def experience_replay(self,progress):
-		if self.store_count < self.batch_size:
-			return float('nan')
-		
-		weight,indices,c,v,w,a,r,c_next,v_next,w_next,done,infeasible_action,nm,nm_next = self.sample_batch(progress)
-		self.optimizer.zero_grad()
-		td_errors = self.calc_td_error(c,v,w,a,r,c_next,v_next,w_next,done,infeasible_action,nm,nm_next)
-		loss = torch.mean(torch.pow(td_errors,2)*torch.from_numpy(weight).clone().to(self.device))
-		loss.backward()
-		self.optimizer.step()
-		self.update_priority(indices,td_errors)
-		return loss.item()
-
-	def calc_td_error(self,c,v,w,action,r,c_next,v_next,w_next,done,infeasible_action,nm,nm_next):
-
-		current_Q = self.model.Forward(v,w,c,nm_batch=nm)
-		next_QT = self.target_model.Forward(v_next,w_next,c_next,nm_batch=nm_next).detach()
-		next_Q = self.model.Forward(v_next,w_next,c_next,nm_batch=nm_next).detach()
-
-		### Without Double DQN ###
-		next_QT[infeasible_action] = -1.0e20
-		Q_max_next = torch.tensor([next_QT[nm_next[i]*self.n_edge_action_type:nm_next[i+1]*self.n_edge_action_type].max() if nm_next[i] != nm_next[i+1] else 0.0 for i in range(self.batch_size)],dtype=torch.float32,device=self.device,requires_grad=False)
-
-		# ### Using Double DQN ###
-		# next_Q[infeasible_action] = -1.0e20
-		# action_next = [nm_next[i]*self.n_edge_action_type + next_Q[nm_next[i]*self.n_edge_action_type:nm_next[i+1]*self.n_edge_action_type].argmax().item() for i in range(self.batch_size)]
-		# Q_max_next = next_QT[action_next]
-
-		Q_target = r+(self.nstep_gamma*Q_max_next)*~done
-		td_errors = self.tdfunc(current_Q[action],Q_target) # In rainbow, not td_error but KL divergence loss is used to 
-
-		return td_errors
-
-	def decide_action(self,v,w,c,eps,infeasible_actions):
-
-		Q = self.model.Forward(v,w,c).detach().to('cpu').numpy()
-		
-		if np.random.rand() > eps:
-			a = np.ma.masked_where(infeasible_actions,Q).argmax()
-		else:
-			a = np.random.choice(np.argwhere(~infeasible_actions)[:,0])
-
-		return a, Q[a]
-
-class Agent():
-
-	def __init__(self,n_node_inputs,n_edge_inputs,n_feature_outputs,n_action_types,use_gpu):
-		self.brain = Brain(n_node_inputs,n_edge_inputs,n_feature_outputs,n_action_types,use_gpu)     
-		self.step = 0
-		self.n_update = 0
-		self.target_update_freq = TARGET_UPDATE_FREQ
-
-	def update_q_function(self,progress):
-		'''
-		progress<float> : The overall progress of the training. Take a value within [0,1].
-		'''
-		loss = self.brain.experience_replay(progress)
-		if self.n_update % self.target_update_freq == 0:
-			self.brain.target_model.load_state_dict(self.brain.model.state_dict())
-
-		self.n_update += 1
-		return loss
-		
-	def get_action(self,v,w,c,eps,infeasible_actions):
-		action, q = self.brain.decide_action(v,w,c,eps=eps,infeasible_actions=infeasible_actions)
-		return action, q
+function Brain(n_node_inputs::Int, n_edge_inputs::Int, n_feature_outputs::Int, n_action_types::Int, use_gpu::Bool)
+	if use_gpu
+		device = gpu
+	else
+		device = cpu
+	end
 	
-	def memorize(self,c,v,w,action,reward,c_next,v_next,w_next,ep_end,infeasible_actions,stop):
-		self.brain.store_experience(c,v,w,action,reward,c_next,v_next,w_next,ep_end,infeasible_actions,stop)
+	batch_size = 32
+	model = NN(n_node_inputs, n_edge_inputs, n_feature_outputs, n_action_types, batch_size, use_gpu)
+	target_model = deepcopy(model)
+	optimizer = Adam(model.parameters, lr=1.0e-4) # RMSprop(self.model.parameters(),lr=1.0e-5)
+	n_edge_action_type = n_action_types
+	n_step = 3
+	gamma = 1.0
+	nstep_gamma = gamma^n_step
+	temp_buffer = Deque{Int32}
+	capacity = Int32(1E4)
+	buffer = Deque{Int32} #Deque([nothing for _ in 1:capacity], capacity)
+	tdfunc = Flux.mae
+	priority = zeros(Float32, capacity)
+	max_priority = 1.0
+	beta_scheduler = progress -> 0.4 + 0.6*progress
+	store_count = 0
+	
+	new(device, n_node_inputs, n_edge_inputs, batch_size, model, target_model, optimizer,
+		n_edge_action_type, n_step, gamma, nstep_gamma, temp_buffer, capacity, buffer,
+		tdfunc, priority, max_priority, beta_scheduler, store_count)
+	end
+
+end
+
+function store_experience(
+    self::Brain, c, v, w, action, reward, c_next, v_next, w_next, done, infeasible_action, stop
+)
+    v = Float32.(v)
+    w = Float32.(w)
+    v_next = Float32.(v_next)
+    w_next = Float32.(w_next)
+    push!(self.temp_buffer, Temp_Experience(c, v, w, action, reward))
+
+    # Using Multistep learning
+    if done || stop
+        for j in 1:length(self.temp_buffer)
+            nstep_return = sum(
+                [self.gamma ^ (i - j) * self.temp_buffer[i].reward for i in j:length(self.temp_buffer)]
+            )
+            self.priority[1:end-1], self.priority[end] = self.priority[2:end], self.max_priority
+            push!(
+                self.buffer,
+                Experience(
+                    self.temp_buffer[j].c, self.temp_buffer[j].v, self.temp_buffer[j].w, 
+                    self.temp_buffer[j].action, nstep_return, c_next, v_next, w_next, done, 
+                    infeasible_action
+                )
+            )
+            self.store_count += 1
+        empty!(self.temp_buffer)
+    elseif length(self.temp_buffer) == self.n_step
+        nstep_return = sum([self.gamma ^ i * self.temp_buffer[i].reward for i in 1:length(self.temp_buffer)])
+        self.priority[1:end-1], self.priority[end] = self.priority[2:end], self.max_priority
+        push!(
+            self.buffer,
+            Experience(
+                self.temp_buffer[1].c, self.temp_buffer[1].v, self.temp_buffer[1].w, self.temp_buffer[1].action, 
+                nstep_return, c_next, v_next, w_next, done, infeasible_action
+            )
+        )
+        self.store_count += 1
+    end
+end
+
+
+
+function sample_batch(self, progress)
+    p = self.priority ./ sum(self.priority)
+    indices = rand(Categorical(p), self.batch_size, replace=false)
+
+    weight = (p[indices] .* self.capacity) .^ (-self.beta_scheduler(progress))
+    weight /= maximum(weight)
+
+    batch = [self.buffer[i] for i in indices]
+
+    c_batch = zeros(Int, 0, 2)
+    v_batch = cat([dat.v for dat in batch]..., dims=1)
+    w_batch = cat([dat.w for dat in batch]..., dims=1)
+    a_batch = [dat.action for dat in batch]
+    r_batch = Float32.([dat.reward for dat in batch])
+    c2_batch = zeros(Int, 0, 2)
+    v2_batch = cat([dat.v_next for dat in batch]..., dims=1)
+    w2_batch = cat([dat.w_next for dat in batch]..., dims=1)
+    done_batch = Bool.([dat.done for dat in batch])
+    infeasible_a_batch = vcat([dat.infeasible_action for dat in batch]...)
+    nm_batch = zeros(Int, self.batch_size+1)
+    nm2_batch = zeros(Int, self.batch_size+1)
+
+    nn = 0
+    nm = 0
+    for i in 1:self.batch_size
+        c_batch = vcat(c_batch, batch[i].c .+ nn)
+        nn += size(batch[i].v, 1)
+        nm += size(batch[i].w, 1)
+        nm_batch[i+1] = nm
+    end
+    a_batch .+= (nm_batch[1:end-1] .* self.n_edge_action_type)
+
+    nn2 = 0
+    nm2 = 0
+    for i in 1:self.batch_size
+        c2_batch = vcat(c2_batch, batch[i].c_next .+ nn2)
+        nn2 += size(batch[i].v_next, 1)
+        nm2 += size(batch[i].w_next, 1)
+        nm2_batch[i+1] = nm2
+    end
+
+    return weight, indices, c_batch, v_batch, w_batch, a_batch, r_batch, c2_batch, v2_batch, w2_batch, done_batch, infeasible_a_batch, nm_batch, nm2_batch
+end
+
+function update_priority(self, indices, td_errors)
+    pri = (abs.(Flux.Tracker.value(td_errors).to("cpu").data) .+ 1e-3).^0.6
+    self.priority[indices] = pri
+    self.max_priority = max(self.max_priority, maximum(pri))
+end
+
+function experience_replay(self, progress)
+    if self.store_count < self.batch_size
+        return NaN
+    end
+
+    weight, indices, c, v, w, a, r, c_next, v_next, w_next, done, infeasible_action, nm, nm_next = sample_batch(progress)
+    Flux.reset!(self.optimizer)
+    td_errors = calc_td_error(c, v, w, a, r, c_next, v_next, w_next, done, infeasible_action, nm, nm_next)
+    loss = mean((td_errors .^ 2) .* torch.Tensor(weight) .|> device=self.device)
+    Flux.back!(loss)
+    step!(self.optimizer)
+    update_priority(self, indices, td_errors)
+    return loss.item()
+end
+
+function calc_td_error(self, c, v, w, action, r, c_next, v_next, w_next, done, infeasible_action, nm, nm_next)
+    current_Q = self.model.Forward(v, w, c, nm_batch=nm)
+    next_QT = self.target_model.Forward(v_next, w_next, c_next, nm_batch=nm_next) |> detach
+    next_Q = self.model.Forward(v_next, w_next, c_next, nm_batch=nm_next) |> detach
+
+    ### Without Double DQN ###
+    next_QT[infeasible_action] .= -1.0e20
+    Q_max_next = [maximum(next_QT[(nm_next[i]*self.n_edge_action_type)+1:nm_next[i+1]*self.n_edge_action_type]) if nm_next[i] != nm_next[i+1] else 0.0 for i in 1:self.batch_size] |> torch.tensor(device=self.device)
+
+    # ### Using Double DQN ###
+    # next_Q[infeasible_action] .= -1.0e20
+    # action_next = [(nm_next[i]*self.n_edge_action_type) + argmax(next_Q[(nm_next[i]*self.n_edge_action_type)+1:nm_next[i+1]*self.n_edge_action_type]).item() for i in 1:self.batch_size]
+    # Q_max_next = next_QT[action_next]
+
+    Q_target = r + (self.nstep_gamma .* Q_max_next) .* ~done
+    td_errors = tdfunc(current_Q[action], Q_target)  # In rainbow, not td_error but KL divergence loss is used to
+    return td_errors
+end
+
+
+function decide_action(self, v, w, c, eps, infeasible_actions)
+    Q = self.model.Forward(v, w, c)
+    Q = detach(Q).to("cpu").numpy()
+
+    if rand() > eps
+        masked_Q = ma.masked_where(infeasible_actions, Q)
+        a = argmax(masked_Q)
+    else
+        feasible_actions = findall(!infeasible_actions)
+        a = feasible_actions[rand(1:length(feasible_actions))]
+    end
+
+    return a, Q[a]
+end
+
+mutable struct Agent
+    brain::Brain
+    step::Int64
+    n_update::Int64
+    target_update_freq::Int64
+end
+
+function Agent(n_node_inputs::Int64, n_edge_inputs::Int64, n_feature_outputs::Int64, n_action_types::Int64, use_gpu::Bool)
+    brain = Brain(n_node_inputs, n_edge_inputs, n_feature_outputs, n_action_types, use_gpu)
+    step = 0
+    n_update = 0
+    target_update_freq = TARGET_UPDATE_FREQ
+    Agent(brain, step, n_update, target_update_freq)
+end
+
+function update_q_function(agent::Agent, progress::Float64)
+    loss = agent.brain.experience_replay(progress)
+    if agent.n_update % agent.target_update_freq == 0
+        load_state_dict!(agent.brain.target_model, deepcopy(agent.brain.model.state_dict()))
+    end
+    agent.n_update += 1
+    return loss
+end
+
+function get_action(agent::Agent, v, w, c, eps, infeasible_actions)
+    action, q = agent.brain.decide_action(v, w, c, eps, infeasible_actions)
+    return action, q
+end
+
+function memorize(agent::Agent, c, v, w, action, reward, c_next, v_next, w_next, ep_end, infeasible_actions, stop)
+    agent.brain.store_experience(c, v, w, action, reward, c_next, v_next, w_next, ep_end, infeasible_actions, stop)
+end
+
+
