@@ -1,19 +1,15 @@
-using Random
-Random.seed!(1000)
-using deepcopy
-import Plotter
-import Agent
+include("Agent.jl")
+include("mytruss_env.jl")
 
-### User specified parameters ###
-include("truss_env.jl")
 const N_EDGE_FEATURE = 100
 const RECORD_INTERVAL = 10
 #################################
 
+
 struct Environment
     env::Truss
-    n_edge_action::Int64
-    n_whole_action::Int64
+    n_edge_action::Int32
+    n_whole_action::Int32
     agent::Agent
 end
 

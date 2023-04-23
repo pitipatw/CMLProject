@@ -1,17 +1,3 @@
-#Python code to Julia
-# import os
-# import numpy as np
-
-# import random
-
-# import copy
-# import torch
-# torch.manual_seed(0)
-# from collections import deque
-# from dataclasses import dataclass
-# import pickle
-# import zlib
-
 using Flux
 using Flux.Optimise
 using DataStructures
@@ -30,7 +16,7 @@ using Random, Distributions
 INIT_MEAN = 0.0 ## mean of initial training parameters
 INIT_STD = 0.05 ## standard deviation of initial training parameters
 TARGET_UPDATE_FREQ = 100
-USE_BIAS = False
+USE_BIAS = false
 #################################
 
 # @dataclass
@@ -200,14 +186,14 @@ function getQ(self::NN,μ::Matrix{Int32},n_edges::Int32)
 	return Q
 end
 
-function Forward(self::NN,v::Matrix{Int32},w::Matrix{Int32},connectivity::Matrix{Int32},n_mu_iter=3,nm_batch=None)
+function Forward(nN::NN,v::Matrix{Int32},w::Matrix{Int32},connectivity::Matrix{Int32},n_mu_iter=3,nm_batch=None)
 	   
 	# v[n_nodes,n_node_in_features]
 	# w[n_edges,n_edge_in_features]
 	# connectivity[n_edges,2]
 	# nm_batch[BATCH_SIZE] : int
 
-	IA,I1,I2,D = self.Connectivity(connectivity,v.shape[0])
+	IA,I1,I2,D = nN.Connectivity(connectivity,v.shape[0])
 
 	# if type(v) is np.ndarray
 	# 	v = torch.tensor(v,dtype=torch.float32,device=self.device,requires_grad=False)
@@ -216,31 +202,31 @@ function Forward(self::NN,v::Matrix{Int32},w::Matrix{Int32},connectivity::Matrix
 	# if type(w) is np.ndarray
 	# 	w = torch.tensor(w,dtype=torch.float32,device=self.device,requires_grad=False)
 	# end
-	μ = zeros(Float32, (connectivity.shape[0],self.n_feature_outputs)) |> self.device
+	μ = zeros(Float32, (connectivity.shape[0],nN.n_feature_outputs)) |> nN.device
 	# mu = torch.zeros((connectivity.shape[0],self.n_feature_outputs),device=self.device)
 
 	for i in range(n_mu_iter)
-		μ = getμ(self,v,μ,w,IA,I1,I2,D,mu_iter=i)
+		μ = getμ(nN,v,μ,w,IA,I1,I2,D,mu_iter=i)
 		# print("iter {0}: {1}".format(i,mu.norm(p=2)))
 	end
 	
 	if nm_batch == None
-		Q = getQ(self,μ,size(w)[1])
+		Q = getQ(nN,μ,size(w)[1])
 	else
-		Q = getQ(self,μ,nm_batch)
+		Q = getQ(nN,μ,nm_batch)
 	end
 	Q = Q.flatten()
 
 	return Q
 end
 
-function Save(self,filename,directory="")
-	torch.save(self.to('cpu').state_dict(),os.path.join(directory,filename))
-end
+# function Save(self,filename,directory="")
+# 	torch.save(self.to('cpu').state_dict(),os.path.join(directory,filename))
+# end
 
-function Load(self,filename,directory="")
-	self.load_state_dict(torch.load(os.path.join(directory,filename)))
-end
+# function Load(self,filename,directory="")
+# 	self.load_state_dict(torch.load(os.path.join(directory,filename)))
+# end
 
 
 # end of class NN
@@ -299,55 +285,56 @@ function Brain(n_node_inputs::Int, n_edge_inputs::Int, n_feature_outputs::Int, n
 end
 
 function store_experience(
-    self::Brain, c, v, w, action, reward, c_next, v_next, w_next, done, infeasible_action, stop
+    brain::Brain, c, v, w, action, reward, c_next, v_next, w_next, done, infeasible_action, stop
 )
     v = Float32.(v)
     w = Float32.(w)
     v_next = Float32.(v_next)
     w_next = Float32.(w_next)
-    push!(self.temp_buffer, Temp_Experience(c, v, w, action, reward))
+    push!(brain.temp_buffer, Temp_Experience(c, v, w, action, reward))
 
     # Using Multistep learning
     if done || stop
-        for j in 1:length(self.temp_buffer)
+        for j in 1:length(brain.temp_buffer)
             nstep_return = sum(
-                [self.gamma ^ (i - j) * self.temp_buffer[i].reward for i in j:length(self.temp_buffer)]
+                [brain.gamma ^ (i - j) * brain.temp_buffer[i].reward for i in j:length(brain.temp_buffer)]
             )
-            self.priority[1:end-1], self.priority[end] = self.priority[2:end], self.max_priority
+            brain.priority[1:end-1], brain.priority[end] = brain.priority[2:end], brain.max_priority
             push!(
-                self.buffer,
+                brain.buffer,
                 Experience(
-                    self.temp_buffer[j].c, self.temp_buffer[j].v, self.temp_buffer[j].w, 
-                    self.temp_buffer[j].action, nstep_return, c_next, v_next, w_next, done, 
+                    brain.temp_buffer[j].c, brain.temp_buffer[j].v, brain.temp_buffer[j].w, 
+                    brain.temp_buffer[j].action, nstep_return, c_next, v_next, w_next, done, 
                     infeasible_action
                 )
             )
-            self.store_count += 1
-        empty!(self.temp_buffer)
-    elseif length(self.temp_buffer) == self.n_step
-        nstep_return = sum([self.gamma ^ i * self.temp_buffer[i].reward for i in 1:length(self.temp_buffer)])
-        self.priority[1:end-1], self.priority[end] = self.priority[2:end], self.max_priority
+            brain.store_count += 1
+        empty!(brain.temp_buffer) 
+		end
+    elseif length(brain.temp_buffer) == brain.n_step
+        nstep_return = sum([brain.gamma ^ i * brain.temp_buffer[i].reward for i in 1:length(brain.temp_buffer)])
+        brain.priority[1:end-1], brain.priority[end] = brain.priority[2:end], brain.max_priority
         push!(
-            self.buffer,
+            brain.buffer,
             Experience(
-                self.temp_buffer[1].c, self.temp_buffer[1].v, self.temp_buffer[1].w, self.temp_buffer[1].action, 
+                brain.temp_buffer[1].c, brain.temp_buffer[1].v, brain.temp_buffer[1].w, brain.temp_buffer[1].action, 
                 nstep_return, c_next, v_next, w_next, done, infeasible_action
             )
         )
-        self.store_count += 1
+		brain.store_count += 1
     end
 end
 
 
 
-function sample_batch(self, progress)
-    p = self.priority ./ sum(self.priority)
-    indices = rand(Categorical(p), self.batch_size, replace=false)
+function sample_batch(brain::Brain, progress)
+    p = brain.priority ./ sum(brain.priority)
+    indices = rand(Categorical(p), brain.batch_size)# replace=false)
 
-    weight = (p[indices] .* self.capacity) .^ (-self.beta_scheduler(progress))
+    weight = (p[indices] .* brain.capacity) .^ (-brain.beta_scheduler(progress))
     weight /= maximum(weight)
 
-    batch = [self.buffer[i] for i in indices]
+    batch = [brain.buffer[i] for i in indices]
 
     c_batch = zeros(Int, 0, 2)
     v_batch = cat([dat.v for dat in batch]..., dims=1)
@@ -359,22 +346,22 @@ function sample_batch(self, progress)
     w2_batch = cat([dat.w_next for dat in batch]..., dims=1)
     done_batch = Bool.([dat.done for dat in batch])
     infeasible_a_batch = vcat([dat.infeasible_action for dat in batch]...)
-    nm_batch = zeros(Int, self.batch_size+1)
-    nm2_batch = zeros(Int, self.batch_size+1)
+    nm_batch = zeros(Int, brain.batch_size+1)
+    nm2_batch = zeros(Int, brain.batch_size+1)
 
     nn = 0
     nm = 0
-    for i in 1:self.batch_size
+    for i in 1:brain.batch_size
         c_batch = vcat(c_batch, batch[i].c .+ nn)
         nn += size(batch[i].v, 1)
         nm += size(batch[i].w, 1)
         nm_batch[i+1] = nm
     end
-    a_batch .+= (nm_batch[1:end-1] .* self.n_edge_action_type)
+    a_batch .+= (nm_batch[1:end-1] .* brain.n_edge_action_type)
 
     nn2 = 0
     nm2 = 0
-    for i in 1:self.batch_size
+    for i in 1:brain.batch_size
         c2_batch = vcat(c2_batch, batch[i].c_next .+ nn2)
         nn2 += size(batch[i].v_next, 1)
         nm2 += size(batch[i].w_next, 1)
@@ -384,35 +371,43 @@ function sample_batch(self, progress)
     return weight, indices, c_batch, v_batch, w_batch, a_batch, r_batch, c2_batch, v2_batch, w2_batch, done_batch, infeasible_a_batch, nm_batch, nm2_batch
 end
 
-function update_priority(self, indices, td_errors)
+function update_priority(brain::Brain, indices, td_errors)
     pri = (abs.(Flux.Tracker.value(td_errors).to("cpu").data) .+ 1e-3).^0.6
-    self.priority[indices] = pri
-    self.max_priority = max(self.max_priority, maximum(pri))
+    brain.priority[indices] = pri
+    brain.max_priority = max(brain.max_priority, maximum(pri))
 end
 
-function experience_replay(self, progress)
-    if self.store_count < self.batch_size
+function experience_replay(brain::Brain, progress)
+    if brain.store_count < brain.batch_size
         return NaN
     end
 
     weight, indices, c, v, w, a, r, c_next, v_next, w_next, done, infeasible_action, nm, nm_next = sample_batch(progress)
-    Flux.reset!(self.optimizer)
+    Flux.reset!(brain.optimizer)
     td_errors = calc_td_error(c, v, w, a, r, c_next, v_next, w_next, done, infeasible_action, nm, nm_next)
-    loss = mean((td_errors .^ 2) .* torch.Tensor(weight) .|> device=self.device)
+    loss = mean((td_errors .^2) .* weight) |> brain.device
     Flux.back!(loss)
-    step!(self.optimizer)
-    update_priority(self, indices, td_errors)
+    step!(brain.optimizer)
+    update_priority(brain, indices, td_errors)
     return loss.item()
 end
 
-function calc_td_error(self, c, v, w, action, r, c_next, v_next, w_next, done, infeasible_action, nm, nm_next)
-    current_Q = self.model.Forward(v, w, c, nm_batch=nm)
-    next_QT = self.target_model.Forward(v_next, w_next, c_next, nm_batch=nm_next) |> detach
-    next_Q = self.model.Forward(v_next, w_next, c_next, nm_batch=nm_next) |> detach
+function calc_td_error(brain::Brain, c, v, w, action, r, c_next, v_next, w_next, done, infeasible_action, nm, nm_next)
+    current_Q = brain.model.Forward(v, w, c, nm_batch=nm)
+    next_QT = brain.target_model.Forward(v_next, w_next, c_next, nm_batch=nm_next) |> detach
+    next_Q = brain.model.Forward(v_next, w_next, c_next, nm_batch=nm_next) |> detach
 
     ### Without Double DQN ###
     next_QT[infeasible_action] .= -1.0e20
-    Q_max_next = [maximum(next_QT[(nm_next[i]*self.n_edge_action_type)+1:nm_next[i+1]*self.n_edge_action_type]) if nm_next[i] != nm_next[i+1] else 0.0 for i in 1:self.batch_size] |> torch.tensor(device=self.device)
+	#find Q_max_next using proper for loop
+	Q_max_next = zeros(Float32, brain.batch_size) |> brain.device
+	for i in 1:brain.batch_size
+		if nm_next[i] != nm_next[i+1]
+			Q_max_next[i] = maximum(next_QT[(nm_next[i]*brain.n_edge_action_type)+1:nm_next[i+1]*self.n_edge_action_type])
+		else
+			Q_max_next[i] = 0.0
+		end
+	end
 
     # ### Using Double DQN ###
     # next_Q[infeasible_action] .= -1.0e20
@@ -424,10 +419,12 @@ function calc_td_error(self, c, v, w, action, r, c_next, v_next, w_next, done, i
     return td_errors
 end
 
-
-function decide_action(self, v, w, c, eps, infeasible_actions)
-    Q = self.model.Forward(v, w, c)
-    Q = detach(Q).to("cpu").numpy()
+"""
+Based on epsilon greedy search
+"""
+function decide_action(brain::Brain, v, w, c, eps, infeasible_actions)
+    Q = brain.model.Forward(v, w, c)
+    Q = Q |> cpu
 
     if rand() > eps
         masked_Q = ma.masked_where(infeasible_actions, Q)
