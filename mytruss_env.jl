@@ -1,11 +1,50 @@
 using TopOpt
 using Makie, GLMakie
 
+
+Base.@kwdef mutable struct Truss
+    nk::Int32
+    nm::Int32
+    init_node::Dict{Int32,Vector{Int32}} # Matrix{Float32}
+    connectivity::Dict{Int32,Vector{Int32}} #Matrix{Int32}
+    pin_nodes::Dict{Int32,Vector{Int32}} #Matrix{Int32}
+    nsize:: Int32 # 10.0
+    lsize:: Int32 # 4.0
+    spsize:: Int32 # = 17.0
+    support::Dict{Int32,Vector{Int32}} #
+    node::Dict{Int32,Vector{Int32}} #
+    material::Dict{Int32,Vector{Int32}} #
+    done::Bool # = false
+    steps::Int32 # = 0
+    total_reward::Float32 # 0.0
+    existence::Dict{Int32,Int32} # # ones(nm,1)
+    exist_member_i:: Dict{Int32,Int32} # # = 1:nm
+    section:: Dict{Int32,Int32} # #ones(nm,1)
+    #connectivity is basically elements from TopOpt jl
+    # rewrite function Truss
+    function Truss(init_node::Dict{Int32,Vector{Int32}}, connectivity::Dict{Int32,Vector{Int32}}, pin_nodes::Dict{Int32,Vector{Int32}}, nsize:: Int32, lsize:: Int32, spsize:: Int32, support:: Dict{Int32,Vector{Int32}})
+        nk = length(init_node)
+        nm = length(connectivity)
+        done = false
+        steps = 0 
+        total_reward = 0.0
+        existence = Dict{Int32,Int32}()
+        exist_member_i = Dict{Int32,Int32}()
+        section = Dict{Int32,Int32}()
+        node = copy(init_node)
+        new(nk, nm, init_node, connectivity, pin_nodes, nsize, lsize, spsize, support, node, material, done, steps, total_reward, existence, exist_member_i, section)
+    end
+end
 # 2D
+
+
+# function
+
 ndim = 2
 node_points, elements, mats, crosssecs, fixities, load_cases = load_truss_json(
     joinpath(@__DIR__, "tim_$(ndim)d.json")
 );
+
 
 begin
 #need to generate these
@@ -20,9 +59,15 @@ end
 
 ndim, nnodes, ncells = length(node_points[1]), length(node_points), length(elements)
 loads = load_cases["0"]
+
 problem_original = TrussProblem(
     Val{:Linear}, node_points, elements, loads, fixities, mats, crosssecs
 );
+
+#TopOptjl -> hayshi's format 
+
+
+
 
 xmin = 0.0001
 solver = FEASolver(Direct, problem_original; xmin=xmin)

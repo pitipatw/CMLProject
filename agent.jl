@@ -63,13 +63,13 @@ Base.@kwdef mutable struct NN
 	device::Any
 
 	function NN(;n_node_inputs::Int32,n_edge_inputs::Int32,n_feature_outputs::Int32,n_action_types::Int32,batch_size::Int32,use_gpu::Bool)
-		l1_1 = Flux.Dense(n_edge_inputs,n_feature_outputs ,bias = false ;init = Flux.glorot_normal)    # self.l1_1 = torch.nn.Linear(n_edge_inputs,n_feature_outputs,False)
-		l1_2 = Flux.Dense(n_feature_outputs,n_feature_outputs ,bias = false ;init = Flux.glorot_normal)# self.l1_2 = torch.nn.Linear(n_feature_outputs,n_feature_outputs)
-		l1_3 = Flux.Dense(n_node_inputs,n_feature_outputs ,bias = false;init = Flux.glorot_normal) 	   # self.l1_3 = torch.nn.Linear(n_node_inputs,n_feature_outputs)
-		l1_4 = Flux.Dense(n_feature_outputs,n_feature_outputs ,bias = false;init = Flux.glorot_normal) # self.l1_4 = torch.nn.Linear(n_feature_outputs,n_feature_outputs)
-		l1_5 = Flux.Dense(n_feature_outputs,n_feature_outputs ,bias = false;init = Flux.glorot_normal) # self.l1_5 = torch.nn.Linear(n_feature_outputs,n_feature_outputs)
-		l1_6 = Flux.Dense(n_feature_outputs,n_feature_outputs ,bias = false;init = Flux.glorot_normal) # self.l1_6 = torch.nn.Linear(n_feature_outputs,n_feature_outputs)
-		l2_1 = Flux.Dense(n_feature_outputs,n_action_types ,bias = false;init = Flux.glorot_normal) # self.l2_1 = torch.nn.Linear(n_feature_outputs,n_action_types)
+		l1_1 = Flux.Dense(n_edge_inputs    ,n_feature_outputs ,bias = false ;init = Flux.glorot_normal) # self.l1_1 = torch.nn.Linear(n_edge_inputs,n_feature_outputs,False)
+		l1_2 = Flux.Dense(n_feature_outputs,n_feature_outputs ,bias = false ;init = Flux.glorot_normal) # self.l1_2 = torch.nn.Linear(n_feature_outputs,n_feature_outputs)
+		l1_3 = Flux.Dense(n_node_inputs    ,n_feature_outputs ,bias = false ;init = Flux.glorot_normal) # self.l1_3 = torch.nn.Linear(n_node_inputs,n_feature_outputs)
+		l1_4 = Flux.Dense(n_feature_outputs,n_feature_outputs ,bias = false ;init = Flux.glorot_normal) # self.l1_4 = torch.nn.Linear(n_feature_outputs,n_feature_outputs)
+		l1_5 = Flux.Dense(n_feature_outputs,n_feature_outputs ,bias = false ;init = Flux.glorot_normal) # self.l1_5 = torch.nn.Linear(n_feature_outputs,n_feature_outputs)
+		l1_6 = Flux.Dense(n_feature_outputs,n_feature_outputs ,bias = false ;init = Flux.glorot_normal) # self.l1_6 = torch.nn.Linear(n_feature_outputs,n_feature_outputs)
+		l2_1 = Flux.Dense(n_feature_outputs,n_action_types    ,bias = false ;init = Flux.glorot_normal) # self.l2_1 = torch.nn.Linear(n_feature_outputs,n_action_types)
 		ActivationF = leakyrelu
 		if use_gpu
 			#self.to('cuda') not sure about this one
@@ -90,18 +90,16 @@ Base.@kwdef mutable struct NN
 	# Initialize_weight!() #this is another function 
 
 	# self.n_feature_outputs = n_feature_outputs
-
-
 end
 
 # the rest of the function down here can be put outside the type definition.
-function Connectivity(self::NN,connectivity::Matrix{Int32},n_nodes::Int32)
+function Connectivity(nN::NN,connectivity::Matrix{Int32},n_nodes::Int32)
 	
 	# connectivity[n_edges,2]
 	n_edges = size(connectivity)[1] # n_edges = connectivity.shape[0]
 	order = 1:n_edges # order = np.arange(n_edges)
-	adjacency = zeros(Float32,n_nodes,n_nodes) |> self.device # adjacency = torch.zeros(n_nodes,n_nodes,dtype=torch.float32,device=self.device,requires_grad=False)
-	incidence = zeros(Float32,n_nodes,n_edges) |> self.device # incidence = torch.zeros(n_nodes,n_edges,dtype=torch.float32,device=self.device,requires_grad=False)
+	adjacency = zeros(Float32,n_nodes,n_nodes) |> nN.device # adjacency = torch.zeros(n_nodes,n_nodes,dtype=torch.float32,device=self.device,requires_grad=False)
+	incidence = zeros(Float32,n_nodes,n_edges) |> nN.device # incidence = torch.zeros(n_nodes,n_edges,dtype=torch.float32,device=self.device,requires_grad=False)
 
 	for i in 1:2
 		adjacency[connectivity[:,i],connectivity[:,(i+1)%2]] = 1
@@ -111,9 +109,9 @@ function Connectivity(self::NN,connectivity::Matrix{Int32},n_nodes::Int32)
 	incidence[connectivity[:,2],order] = 1
 
 	incidence_A = abs.(incidence) # incidence_A = torch.abs(incidence)#.to_sparse()
-	incidence_A = torch.abs(incidence)#.to_sparse()
-	incidence_1 = (incidence.==-1) |> Float32 |> self.device # incidence_1 = (incidence==-1).type(torch.float32)
-	incidence_2 = (incidence.==1)  |> Float32 |> self.device # incidence_2 = (incidence==1).type(torch.float32)
+	incidence_A = abs.(incidence)#.to_sparse()
+	incidence_1 = (incidence.==-1) |> Float32 |> nN.device # incidence_1 = (incidence==-1).type(torch.float32)
+	incidence_2 = (incidence.==1)  |> Float32 |> nN.device # incidence_2 = (incidence==1).type(torch.float32)
 
 	return incidence_A,incidence_1,incidence_2,adjacency
 end
@@ -136,17 +134,19 @@ end
 	# 	end
 	# end
 
-function getμ(self::NN,v::Matrix{Int32},μ::Matrix{Int32} ,w::Matrix{Int32},incidence_A::Matrix{Int32},incidence_1::Matrix{Int32},incidence_2::Matrix{Int32},adjacency::Matrix{Int32}, μ_iter::Int32)
+function getμi(self::NN,v::Matrix{Int32},w::Matrix{Int32},elements::Matrix{Int32},i::Int32)
 	
 	# v (array[n_nodes,n_node_features])
 	# mu(array[n_edges,n_edge_out_features])
 	# w (array[n_edges,n_edge_in_features])
-
-	if μ_iter == 0
-		h1   = self.l1_1(w)
-		h2_0 = self.ActivationF(self.l1_3(v))
-		h2   = self.l1_2(incidence_A' * h2_0)
-		μ    = self.ActivationF(h1 + h2)
+	μi = zeros(nm,100)
+	for μ_iter in 1:4
+		if μ_iter == 0
+			h1   = self.l1_1.(w)
+			h2_0 = self.l1_3.(v)
+			h2_0 = self.ActivationF(self.l1_3(v))
+			h2   = self.l1_2(incidence_A' * h2_0)
+			μ    = self.ActivationF(h1 + h2)
 
 	else
 		h3   = self.l1_6(μ)
