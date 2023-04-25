@@ -23,20 +23,25 @@ end
 cat = "materials"
 page = 1 #start from page 1
 total_pages = 0
-filepath = joinpath(@__DIR__,"/all_files/")
+filepath = joinpath(@__DIR__,"all_files/")
+msg = 0 
 while page != total_pages
     if page == 1 
         res = get_data(cat, page)
         response_text = String(res.body)
+        filename = "ECS_page_" * string(page) * ".json"
         total_pages = parse(Int64,(res["X-Total-Pages"]))
         println(total_pages)
 
-        a = JSON.parse(response_text)
+        msg = JSON.json(response_text)
         #write a to a json file
-        open(filepath*filename, "w") do io
-            JSON.print(io, a)
+        println(filepath*filename)
+        open(filepath*filename, "w") do f
+            write(f, msg)
         end
     else
+        println("break")
+        break
         res = get_data()
         response_text = String(res.body)
         a = JSON.parse(response_text)
