@@ -19,13 +19,20 @@ function get_data(cat::String, pagenum::Int64)
     return res
 end
 
-
+res = 0
 cat = "materials"
 page = 1 #start from page 1
 total_pages = 0
 filepath = joinpath(@__DIR__,"all_files/")
 msg = 0 
-while page != total_pages
+
+# # at test run 
+# res = get_data(cat, page)
+# response_text = String(res.body)
+# filename = "ECS_page_" * string(0) * ".json"
+# msg = JSON.parse(response_text)
+
+@time while page != total_pages
     if page == 1 
         res = get_data(cat, page)
         response_text = String(res.body)
@@ -33,23 +40,32 @@ while page != total_pages
         total_pages = parse(Int64,(res["X-Total-Pages"]))
         println(total_pages)
 
-        msg = JSON.json(response_text)
+        msg = JSON.parse(response_text)
         #write a to a json file
         println(filepath*filename)
         open(filepath*filename, "w") do f
-            write(f, msg)
+            JSON.print(f, msg)
         end
+        # open(filepath*filename, "w") do f
+        #     write(f, msg)
+        # end
+        page += 1
     else
-        println("break")
-        break
-        res = get_data()
+        res = get_data(cat, page)
         response_text = String(res.body)
-        a = JSON.parse(response_text)
-        a
+        filename = "ECS_page_" * string(page) * ".json"
+
+        msg = JSON.parse(response_text)
         #write a to a json file
-        open("data.json", "a") do io
-            JSON.print(io, a)
+        println(filepath*filename)
+        open(filepath*filename, "w") do f
+            JSON.print(f, msg)
         end
+        # open(filepath*filename, "w") do f
+        #     write(f, msg)
+        # end
+        page += 1
+        res = nothing #clear the memory
     end
 end
 
