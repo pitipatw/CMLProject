@@ -59,20 +59,7 @@ df = deepcopy(df_core)
 
 
 
-df_for_csv = copy(df[!, list_of_names])
-for i in names(df_for_csv)
-    for j in df_for_csv[!, i]
-        if j !== nothing
-            println("____")
-            println(i)
-            println(j)
-            println(typeof(j))
-            break
-        end
-    end
-end
 
-CSV.write("EC3.csv", df_for_csv)
 
 
 
@@ -121,9 +108,7 @@ headers_in_category_with_string = [
     "pct90_gwp"
 ]
 
-headers_in_plant_or_group_with_string = [ 
-    "carbon_intensity"
-]
+
 
 headers_in_plant_or_group_string = [
     "name",
@@ -168,6 +153,8 @@ header_bool = [
     "fiber_reinforced",
 
 ]
+
+
 for i in headers_with_string
     if i in headers #in case of typo
         n = i*"_numeric"
@@ -189,6 +176,24 @@ for i in headers_in_category_with_string
         println("column $i not found")
     end
 end
+
+headers_in_plant_or_group_with_string = [ 
+    "carbon_intensity"
+]
+
+#going into the category
+plant_or_group_keys = collect(keys(df.plant_or_group[1]))
+for i in headers_in_plant_or_group_with_string
+    if i in plant_or_group_keys
+        n = i*"_numeric"
+        u = i*"_unit"
+        println(i)
+        df_mod[!, n], df_mod[!, u] = splitNum_Unit(df, "plant_or_group", i)
+    else
+        println("column $i not found")
+    end
+end
+
 
 #latidude and longitude of the plants and the owners
 plant_or_group_keys = collect(keys(df.plant_or_group[1]))
@@ -255,12 +260,36 @@ for i in headers_in_plant_or_group_string
 end
 
 
+for i in names(df_mod)
+    println(i)
+    for j in df_mod[!,i]
+        # println(i," ",j)
+    end
+end
+
+
 
 #check
 fig1 = Figure(resolution=(1200, 800))
-ax1  = Axis(fig1[1, 1])
+ax1  = Axis(fig1[1, 1], xlabel="carbon_intensity", ylabel="gwp_numeric")
+scatter!(ax1 , df_mod[!,"carbon_intensity"], df_mod[!,"gwp_numeric"])
 hist( df_mod[!,"gwp_numeric"], bins = 100)
 fig1
+
+df_for_csv = copy(df_mod)
+for i in names(df_for_csv)
+    for j in df_for_csv[!, i]
+        if j !== nothing
+            println("____")
+            println(i)
+            println(j)
+            println(typeof(j))
+            break
+        end
+    end
+end
+
+CSV.write("EC3.csv", df_for_csv)
 
 #Data visualization
 #initialize a list of data
