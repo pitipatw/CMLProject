@@ -4,6 +4,7 @@ using JSON
 
 using Makie, GLMakie, GeoMakie
 
+include("utilities.jl")
 """
 Todo
 Select only US or NewZealand, or somewhere that has dense data points.
@@ -16,7 +17,7 @@ b = FileIO.load("myfile.jld2","a")
 
 """
 
-filepath = joinpath(@__DIR__, "Scraping\\all_files\\")
+filepath = joinpath(@__DIR__, "Scraping/all_files/")
 
 global total_data = Vector{Any}()
 total_pages = 1384 #find a way to get number of total files in the folder
@@ -87,9 +88,11 @@ df_mod = DataFrame()
 
 
 splitNum_Unit(df, "gwp")
+
 headers = names(df)
 
 
+# ultimately, these can be put in a single (or two) vectors to loop
 headers_with_string = [
     "standard_deviation",
     "gwp_per_category_declared_unit",
@@ -100,8 +103,11 @@ headers_with_string = [
     "conservative_estimate",
     "concrete_compressive_strength_28d",
     "lowest_plausible_gwp",
-    "gwp_per_kg"
+    "gwp_per_kg",
+    "density",
+    "gwp"
 ]
+
 
 headers_in_category_with_string = [
     "pct10_gwp",
@@ -115,9 +121,55 @@ headers_in_category_with_string = [
     "pct90_gwp"
 ]
 
+headers_in_plant_or_group_with_string = [ 
+    "carbon_intensity"
+]
 
+headers_in_plant_or_group_string = [
+    "name",
+    "address",
+    "country",
+    "id",
+]
+
+headers_in_plant_of_group_float = [
+    "latitude",
+    "longitude"
+]
+
+headers_in_pog_owned_by_string= [
+    "name",
+]
+
+headers_in_pog_owned_by_float = [
+    "latitude",
+    "longitude"
+]
+
+headers_in_manufacturer = [
+    "name",
+    "latitude",
+    "longitude"
+]
+
+
+headers_general_string = [ 
+        "warnings",
+        "created_on",
+        "description",
+
+]
+headers_float = [
+"gwp_z",
+"concrete_self_consolidating",
+
+]
+header_bool = [
+    "fiber_reinforced",
+
+]
 for i in headers_with_string
-    if i in headers
+    if i in headers #in case of typo
         n = i*"_numeric"
         u = i*"_unit"
         df_mod[!, n], df_mod[!, u] = splitNum_Unit(df, i)
@@ -127,24 +179,88 @@ for i in headers_with_string
 end
 
 #going into the category
-
+category_keys = collect(keys(df.category[1]))
 for i in headers_in_category_with_string
-    dummy = Vector{Float64}(undef, length(df))
-    for j in 1:length(
-    V = df[!,"category"][i]
-    println(V)
-    break
-    if j in keys(df.category[i])
+    if i in category_keys 
         n = i*"_numeric"
         u = i*"_unit"
-        V = df[!,"category"]
-        df_mod[!, n], df_mod[!, u] = splitNum_Unit(df, i)
+        df_mod[!, n], df_mod[!, u] = splitNum_Unit(df, "category", i)
+    else
+        println("column $i not found")
+    end
+end
+
+#latidude and longitude of the plants and the owners
+plant_or_group_keys = collect(keys(df.plant_or_group[1]))
+#this time they are pure float
+for i in headers_in_plant_of_group_float
+    V = Vector{Float64}(undef, length(df.plant_or_group))
+    if i in plant_or_group_keys 
+        n = i
+        # println(i)
+        for j in 1:length(df[!,1])
+            # println(j)
+            if i ∉ keys(df.plant_or_group[j])
+                println("row $j, column $i not found")
+                println("using owner's location")
+                if df.plant_or_group[j]["owned_by"][i] === nothing
+                    V[j] = 0.0
+                else
+                    V[j] = df.plant_or_group[j]["owned_by"][i]
+                end
+            else
+                # println(df.plant_or_group[j][i])
+                if df.plant_or_group[j][i] === nothing
+                    V[j] = 0.0
+                else
+                    V[j]= df.plant_or_group[j][i]
+                end
+            end
+        end
+        df_mod[!, n] = V
     else
         println("column $i not found")
     end
 end
 
 
+for i in headers_in_plant_or_group_string
+    V = Vector{String}(undef, length(df.plant_or_group))
+    if i in plant_or_group_keys 
+        n = i
+        # println(i)
+        for j in 1:length(df[!,1])
+            # println(j)
+            if i ∉ keys(df.plant_or_group[j])
+                println("row $j, column $i not found")
+                println("using owner's country")
+                if df.plant_or_group[j]["owned_by"][i] === nothing
+                    V[j] = "missing"
+                else
+                    V[j] = df.plant_or_group[j]["owned_by"][i]
+                end
+            else
+                # println(df.plant_or_group[j][i])
+                if df.plant_or_group[j][i] === nothing
+                    V[j] = "missing"
+                else
+                    V[j]= df.plant_or_group[j][i]
+                end
+            end
+        end
+        df_mod[!, n] = V
+    else
+        println("column $i not found")
+    end
+end
+
+
+
+#check
+fig1 = Figure(resolution=(1200, 800))
+ax1  = Axis(fig1[1, 1])
+hist( df_mod[!,"gwp_numeric"], bins = 100)
+fig1
 
 #Data visualization
 #initialize a list of data

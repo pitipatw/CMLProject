@@ -152,16 +152,16 @@ function splitNum_Unit(df::DataFrame, colname::String)
     return numerics, units
 end
 
-function splitNum_Unit(V::Vector{Dict{String,Any}}, keyname::String)
+function splitNum_Unit(df::DataFrame, colname::String, key::String)
     numerics = Vector{Float64}(undef, length(df.gwp))
     units = Vector{String}(undef, length(df.gwp))
-    for i in 1:length(V)
-        if V.keyname === nothing
+    for i in 1:length(df[!, colname])
+        if df[!, colname][i][key] === nothing
             numerics[i] = 0.0
             units[i] = "0 Recheck with original data"
             println("value changed at $colname, $i ")
         else
-            s = split(V.keyname, " ")
+            s = split(df[!, colname][i][key], " ")
 
             if length(s) == 1
                 if s[1][end-2:end] == "MPa"
