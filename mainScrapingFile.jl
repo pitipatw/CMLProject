@@ -1,7 +1,7 @@
 #tidy up files into dataframes
-begin
 using DataFrames, CSV
 using JSON
+
 using Makie, GLMakie, GeoMakie
 
 """
@@ -168,7 +168,12 @@ for i in names(df_for_csv)
         end
     end
 end
-end
+
+
+
+
+
+
 CSV.write("EC3.csv",df_for_csv)
 
 
