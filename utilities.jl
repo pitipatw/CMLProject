@@ -123,8 +123,9 @@ end
 
 
 function splitNum_Unit(df::DataFrame, colname::String)
-    numerics = Vector{Float64}(undef, length(df.gwp))
-    units = Vector{String}(undef, length(df.gwp))
+    # numerics = Vector{Float64}(0, length(df.gwp))
+    numerics = zeros(Float64, length(df.gwp))
+    units = repeat(["missing"], length(df.gwp))
     for i in 1:length(df[!, colname])
         if df[!, colname][i] === nothing
             numerics[i] = 0.0
@@ -146,6 +147,10 @@ function splitNum_Unit(df::DataFrame, colname::String)
             elseif length(s) == 2
                 numerics[i] = parse(Float64, s[1])
                 units[i] = s[2]
+            else
+                println("Error at $colname, $i")
+                @error "Error at $colname, $i"
+                break
             end
         end
     end
@@ -153,10 +158,12 @@ function splitNum_Unit(df::DataFrame, colname::String)
 end
 
 function splitNum_Unit(df::DataFrame, colname::String, key::String)
-    numerics = Vector{Float64}(undef, length(df.gwp))
-    units = Vector{String}(undef, length(df.gwp))
+    numerics = zeros(Float64, length(df.gwp))
+    units = repeat(["missing"], length(df.gwp))
     for i in 1:length(df[!, colname])
-        if df[!, colname][i][key] === nothing
+        # println(i)
+        if key ∉ keys(df[!, colname][i])
+        elseif df[!, colname][i][key] === nothing 
             numerics[i] = 0.0
             units[i] = "0 Recheck with original data"
             println("value changed at $colname, $i ")
@@ -176,6 +183,10 @@ function splitNum_Unit(df::DataFrame, colname::String, key::String)
             elseif length(s) == 2
                 numerics[i] = parse(Float64, s[1])
                 units[i] = s[2]
+            else
+                println("length of s is not 1 or 2")
+                print("HELP!!!")
+                @error "HELP!!!"
             end
         end
     end
