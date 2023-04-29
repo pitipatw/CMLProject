@@ -4,6 +4,9 @@ using JSON
 
 using Makie, GLMakie, GeoMakie
 
+#note on the Data
+#I tidy up gwp that more than 1
+#also 0 and negative values.
 include("utilities.jl")
 """
 Todo
@@ -38,7 +41,7 @@ end
 #should get 138400 x 328
 @time df_core = DataFrame(total_data)
 df = deepcopy(df_core)
-# begin
+# begin # will take a very long time and a lot of memory and will crash.
 #     #save the file
 #     using FileIO, JLD2
 #     @time FileIO.save("28042023df.jld2","df_core",df_core)
@@ -70,9 +73,6 @@ df_mod = DataFrame()
 #the first column will be parsed to Float64, the second column will be a string.
 #the second column will be the unit of the first column
 #add those to df_mod gwp and gwp_unit
-
-
-
 
 splitNum_Unit(df, "gwp")
 

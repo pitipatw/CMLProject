@@ -147,6 +147,12 @@ function splitNum_Unit(df::DataFrame, colname::String)
             elseif length(s) == 2
                 numerics[i] = parse(Float64, s[1])
                 units[i] = s[2]
+            elseif length(s) == 3
+                numerics[i] = parse(Float64, s[1])
+                units[i] = s[2]*" "*s[3]
+            elseif length(s) == 4
+                numerics[i] = parse(Float64, s[1])
+                units[i] = s[2]*" "*s[3]*" "*s[4]
             else
                 println("Error at $colname, $i")
                 @error "Error at $colname, $i"
