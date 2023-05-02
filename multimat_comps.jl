@@ -41,10 +41,9 @@ penalty2 = TopOpt.PowerPenalty(1.0) #no penalty.
 interp2 = MaterialInterpolation(densities, penalty2)
 
 # objective function
-obj = y -> begin # y is a decision varible,
-    x = tounit(MultiMaterialVariables(y, nmats)) 
-    _E = interp1(filter(x))
-    return comp(_E) #take that and multiply by the volume
+obj = y -> begin 
+    _rhos = interp2(MultiMaterialVariables(y, nmats)) #rho is the density
+    return sum(_rhos.x) / ncells # elements have unit volumes, 0.4 is the target.
 end
 
 # initial decision variables as a vector
@@ -55,14 +54,15 @@ obj(y0)
 # testing the gradient
 Zygote.gradient(obj, y0)
 
-# mass constraint
-mc = 0.5
-list_of_mcs = [0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.55,0.6,0.65,0.7]
-for mc in list_of_mcs
+# compliance constraint
+
+# list_of_mcs = [0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.55,0.6,0.65,0.7]
+# for mc in list_of_mcs
     println("this is mc: ", mc)
 constr = y -> begin 
-    _rhos = interp2(MultiMaterialVariables(y, nmats)) #rho is the density
-    return sum(_rhos.x) / ncells - mc # elements have unit volumes, 0.4 is the target.
+    x = tounit(MultiMaterialVariables(y, nmats)) 
+    _E = interp1(filter(x))
+    return comp(_E) - 0.1 #take that and multiply by the volume
 end
 
 # testing the mass constraint
@@ -82,7 +82,7 @@ options = MMAOptions(; s_init=0.1, tol=Tolerance(; kkt=1e-3))
 y0 = zeros(ncells * (nmats - 1))
 
 # solving the optimization problem
-@time res = optimize(model, alg, y0; options)
+res = optimize(model, alg, y0; options)
 y = res.minimizer
 
 # testing the solution
@@ -121,6 +121,6 @@ f2
 optobj = obj(y)
 text!("$optobj") 
 strval = split(string(mc), ".")
-name = "multimat"*strval[1]*strval[2]*".png"
+name = "multimat_compConts"*strval[1]*strval[2]*".png"
 save(name, f2)
-end
+# end
