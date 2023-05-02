@@ -1,4 +1,8 @@
 using TopOpt, Test, Zygote, Test
+
+"""
+Ultimate plan is to make the decesion variable just 1 per cell -> directly means modulus of the concrete.
+"""
 fc′ = 1:0.1:4.0
 f2e = x-> 4700*sqrt(x)
 Es = [1e-5, 1.0, 4.0] # Young's moduli of 3 materials (incl. void)
@@ -56,13 +60,12 @@ Zygote.gradient(obj, y0)
 
 # compliance constraint
 
-# list_of_mcs = [0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.55,0.6,0.65,0.7]
-# for mc in list_of_mcs
-    println("this is mc: ", mc)
+list_of_stress_lim = [0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.55,0.6,0.65,0.7]
+for comp_lim in list_of_stress_lim
 constr = y -> begin 
     x = tounit(MultiMaterialVariables(y, nmats)) 
     _E = interp1(filter(x))
-    return comp(_E) - 0.1 #take that and multiply by the volume
+    return comp(_E) - comp_lim #take that and multiply by the volume
 end
 
 # testing the mass constraint
@@ -116,11 +119,12 @@ scatter!(ax1, map[:,2],map[:,1], color = colx)
 f2, ax ,hm = heatmap(map[:,2],map[:,1], colx)
 Colorbar(f1[1, 2])
 Colorbar(f2[:,end+1], hm)
+ax.title = "comp: "*string(comp_lim)
 f2
 # f1
 optobj = obj(y)
 text!("$optobj") 
-strval = split(string(mc), ".")
+strval = split(string(comp_lim), ".")
 name = "multimat_compConts"*strval[1]*strval[2]*".png"
 save(name, f2)
-# end
+end
