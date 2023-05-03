@@ -1,11 +1,5 @@
 using TopOpt, Test, Zygote, Test
-
-"""
-Ultimate plan is to make the decesion variable just 1 per cell -> directly means modulus of the concrete.
-
-plot another heatmap, but with the value as the max decision value, so we know if ut's hesitaing or not
-"""
-fc′ = 28:5:90
+fc′ = 1:0.1:4.0
 f2e = x-> 4700*sqrt(x)
 Es = [1e-5, 1.0, 4.0] # Young's moduli of 3 materials (incl. void)
 Es = vcat( [1e-5],f2e.(fc′) )
@@ -47,9 +41,10 @@ penalty2 = TopOpt.PowerPenalty(1.0) #no penalty.
 interp2 = MaterialInterpolation(densities, penalty2)
 
 # objective function
-obj = y -> begin 
-    _rhos = interp2(MultiMaterialVariables(y, nmats)) #rho is the density
-    return sum(_rhos.x) / ncells # elements have unit volumes, 0.4 is the target.
+obj = y -> begin # y is a decision varible,
+    x = tounit(MultiMaterialVariables(y, nmats)) 
+    _E = interp1(filter(x))
+    return comp(_E) #take that and multiply by the volume
 end
 
 # initial decision variables as a vector
@@ -60,15 +55,10 @@ obj(y0)
 # testing the gradient
 Zygote.gradient(obj, y0)
 
-# compliance constraint
-
-list_of_stress_lim = [0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.55,0.6,0.65,0.7]
-list_of_stress_lim = [1300]
-comp_lim = list_of_stress_lim[1]
+# mass constraint
 constr = y -> begin 
-    x = tounit(MultiMaterialVariables(y, nmats)) 
-    _E = interp1(filter(x))
-    return comp(_E) - comp_lim #take that and multiply by the volume
+    _rhos = interp2(MultiMaterialVariables(y, nmats)) #rho is the density
+    return sum(_rhos.x) / ncells - 0.1 # elements have unit volumes, 0.4 is the target.
 end
 
 # testing the mass constraint
@@ -88,13 +78,13 @@ options = MMAOptions(; s_init=0.1, tol=Tolerance(; kkt=1e-3))
 y0 = zeros(ncells * (nmats - 1))
 
 # solving the optimization problem
-@time res = optimize(model, alg, y0; options)
+res = optimize(model, alg, y0; options)
 y = res.minimizer
 
 # testing the solution
 @test constr(y) < 1e-6
 
-x = TopOpt.tounit(reshape(y, ncells, nmats - 1))  #reshape into a matrix with rows of each elements, and columns of each material propabilities/
+x = TopOpt.tounit(reshape(y, ncells, nmats - 1))
 sum(x[:, 2:3]) / size(x, 1) # the non-void elements as a ratio
 @test all(x -> isapprox(x, 1), sum(x; dims=2))
 
@@ -113,8 +103,8 @@ for i in 1:160*40
     map[i,:] = [div(i, 160) + 1, mod(i, 160)]
 end
 cols = [:black, :red, :blue, :green]
-# cols = [:black, :red, :blue, :green, :yellow, :orange, :purple, :cyan, :magenta, :brown, :pink, :gray]
-# col_plot = cols[colx]
+cols = [:black, :red, :blue, :green, :yellow, :orange, :purple, :cyan, :magenta, :brown, :pink, :gray]
+col_plot = cols[colx]
 
 f1 = Figure(resolution = (800, 600))
 ax1 = Axis(f1[1, 1])
@@ -122,11 +112,4 @@ scatter!(ax1, map[:,2],map[:,1], color = colx)
 f2, ax ,hm = heatmap(map[:,2],map[:,1], colx)
 Colorbar(f1[1, 2])
 Colorbar(f2[:,end+1], hm)
-ax.title = "comp: "*string(comp_lim)
-f2
-# f1
-optobj = obj(y)
-text!("$optobj") 
-strval = split(string(comp_lim), ".")
-name = "aaafc_adjusted_multimat_compConts"*strval[1]*strval[2]*".png"
-save(name, f2)
+f1

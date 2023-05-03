@@ -1,18 +1,12 @@
 using TopOpt, Test, Zygote, Test
-
-"""
-Ultimate plan is to make the decesion variable just 1 per cell -> directly means modulus of the concrete.
-
-plot another heatmap, but with the value as the max decision value, so we know if ut's hesitaing or not
-"""
-fc′ = 28:5:90
+fc′ = 1:0.1:4.0
 f2e = x-> 4700*sqrt(x)
 Es = [1e-5, 1.0, 4.0] # Young's moduli of 3 materials (incl. void)
 Es = vcat( [1e-5],f2e.(fc′) )
 
 f2g = x-> 0.5*sqrt(x)/5
 densities = [0.0, 0.5, 1.0] # for mass calc
-densities = vcat( [0.0], f2g.(fc′) )
+densities = vcat( [0.0], f2g.(fc′) )./0.2
 nmats = 3
 nmats = length(Es)
 nu = 0.3 # Poisson's ratio
@@ -47,9 +41,10 @@ penalty2 = TopOpt.PowerPenalty(1.0) #no penalty.
 interp2 = MaterialInterpolation(densities, penalty2)
 
 # objective function
-obj = y -> begin 
-    _rhos = interp2(MultiMaterialVariables(y, nmats)) #rho is the density
-    return sum(_rhos.x) / ncells # elements have unit volumes, 0.4 is the target.
+obj = y -> begin # y is a decision varible,
+    x = tounit(MultiMaterialVariables(y, nmats)) 
+    _E = interp1(filter(x))
+    return comp(_E) #take that and multiply by the volume
 end
 
 # initial decision variables as a vector
@@ -60,15 +55,14 @@ obj(y0)
 # testing the gradient
 Zygote.gradient(obj, y0)
 
-# compliance constraint
+# mass constraint
+mc = 0.5
+list_of_mcs = [0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.55,0.6,0.65,0.7]
 
-list_of_stress_lim = [0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.55,0.6,0.65,0.7]
-list_of_stress_lim = [1300]
-comp_lim = list_of_stress_lim[1]
+    println("this is mc: ", mc)
 constr = y -> begin 
-    x = tounit(MultiMaterialVariables(y, nmats)) 
-    _E = interp1(filter(x))
-    return comp(_E) - comp_lim #take that and multiply by the volume
+    _rhos = interp2(MultiMaterialVariables(y, nmats)) #rho is the density
+    return sum(_rhos.x) / ncells - mc # elements have unit volumes, 0.4 is the target.
 end
 
 # testing the mass constraint
@@ -122,11 +116,11 @@ scatter!(ax1, map[:,2],map[:,1], color = colx)
 f2, ax ,hm = heatmap(map[:,2],map[:,1], colx)
 Colorbar(f1[1, 2])
 Colorbar(f2[:,end+1], hm)
-ax.title = "comp: "*string(comp_lim)
 f2
 # f1
 optobj = obj(y)
 text!("$optobj") 
-strval = split(string(comp_lim), ".")
-name = "aaafc_adjusted_multimat_compConts"*strval[1]*strval[2]*".png"
+strval = split(string(mc), ".")
+name = "multimat"*strval[1]*strval[2]*".png"
 save(name, f2)
+

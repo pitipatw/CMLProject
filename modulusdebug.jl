@@ -8,7 +8,7 @@ plot another heatmap, but with the value as the max decision value, so we know i
 fc′ = 28:5:90
 f2e = x-> 4700*sqrt(x)
 Es = [1e-5, 1.0, 4.0] # Young's moduli of 3 materials (incl. void)
-Es = vcat( [1e-5],f2e.(fc′) )
+Es = vcat( [1e-5],f2e.(fc′) )/10000
 
 f2g = x-> 0.5*sqrt(x)/5
 densities = [0.0, 0.5, 1.0] # for mass calc
@@ -18,6 +18,22 @@ nmats = length(Es)
 nu = 0.3 # Poisson's ratio
 f = 1.0 # downward force
 
+#function plot
+f3 = Figure(resolution = (800, 600))
+ax3 = Axis(f3[1,1])
+ax3.yticklabelsize = 30 ; ax3.xticklabelsize = 30
+ax3.ylabel = "Young's modulus (MPa)" ; ax3.xlabel = "Concrete strength (MPa)"
+ax3.title = "Young's modulus vs concrete strength"
+ax3.titlesize = 40
+ax3.ylabelsize = 30 ; ax3.xlabelsize = 30
+lines!(ax3, fc′, Es[2:end], color = :red, label = "E")
+ax4 = Axis(f3[1,2])
+lines!(ax4, fc′ , f2g.(fc′), color = :blue, label = "density")
+ax4.yticklabelsize = 30 ; ax4.xticklabelsize = 30
+ax4.ylabel = "Density" ; ax4.xlabel = "Concrete strength (MPa)"
+ax4.title = "Density vs concrete strength"
+ax4.titlesize = 40
+ax4.ylabelsize = 30 ; ax4.xlabelsize = 30
 # problem definition
 problem = PointLoadCantilever(
     Val{:Linear}, # order of bases functions
@@ -123,6 +139,7 @@ f2, ax ,hm = heatmap(map[:,2],map[:,1], colx)
 Colorbar(f1[1, 2])
 Colorbar(f2[:,end+1], hm)
 ax.title = "comp: "*string(comp_lim)
+ax.title = "3mat"
 f2
 # f1
 optobj = obj(y)
