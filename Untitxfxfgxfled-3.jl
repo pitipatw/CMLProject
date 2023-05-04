@@ -16,10 +16,10 @@ function getQ(s::State , a ::Action, Θ::Vector{Float64})
         r = Le*( 1 - max(stress_raio))
         r_list[i] = r
 
-            compute.
-        choose a member to remove by epsilon greedy policy
-        compute the reward
-        update Q
+        #     compute.
+        # choose a member to remove by epsilon greedy policy
+        # compute the reward
+        # update Q
     end
 
     #update Θ with RMSprop

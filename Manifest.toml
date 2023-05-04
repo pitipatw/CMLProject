@@ -2,7 +2,7 @@
 
 julia_version = "1.8.5"
 manifest_format = "2.0"
-project_hash = "b9be20a148a9f176ea483b2106a885149ff59a2d"
+project_hash = "65907bf0a00962afdef005acafa7bf0d9f7934d0"
 
 [[deps.ADNLPModels]]
 deps = ["ForwardDiff", "LinearAlgebra", "NLPModels", "Requires", "ReverseDiff", "SparseArrays"]
@@ -2550,6 +2550,12 @@ deps = ["Distributions", "ExtendableSparse", "GLM", "IterativeSolvers", "LinearA
 git-tree-sha1 = "89fba32583335648b65b879b49cd9ed08ff17026"
 uuid = "6fc51010-71bc-11e9-0e15-a3fcc6593c49"
 version = "6.5.1"
+
+[[deps.SurrogatesFlux]]
+deps = ["Flux", "Surrogates"]
+git-tree-sha1 = "d4f60df301a95baf2cdbb50d76e81ce17d33d1ea"
+uuid = "4f55584b-dac4-4b1c-802a-b7c47b72cb4c"
+version = "0.1.0"
 
 [[deps.SurrogatesRandomForest]]
 deps = ["Surrogates", "XGBoost"]
