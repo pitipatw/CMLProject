@@ -1,25 +1,34 @@
-using Surrogates
-num_samples = 10
-lb = 0.0
-ub = 10.0
+using Flux
 
-#Sampling
-x = sample(num_samples,lb,ub,SobolSample())
-f = x-> log(x)*x^2+x^3
-y = f.(x)
+model = Chain(Dense(1 => 50, sigmoid), Dense(50 => 1))
+model(5)
+model([10])
+Flux.gradient( model, Float32(10) ) # This works
 
-#Creating surrogate
-alpha = 2.0
-n = 6
-my_lobachevsky = LobachevskySurrogate(x,y,lb,ub,alpha=alpha,n=n)
+obj = y -> begin
+# _rhos = interp2(MultiMaterialVariables(y, nmats)) #rho is the density
+ρ = f2g.(y)
+# return sum(_rhos.x) / ncells # elements have unit volumes, 0.4 is the target.
+return sum(ρ)/ncells
+end
+# PseudoDensities(y)
 
-#Approximating value at 5.0
-value = my_lobachevsky(5.0)
+# initial decision variables as a vector
+# y0 = zeros(ncells * (nmats - 1))
+y0 = 40*ones(ncells)
+# testing the objective function
+@show obj(y0)
+# testing the gradient
+Zygote.gradient(obj, y0)
 
-#Adding more data points
-surrogate_optimize(f,SRBF(),lb,ub,my_lobachevsky,UniformSample())
-
-#New approximation
-value = my_lobachevsky(5.0)
+m = Chain(x -> x^2, x -> x+1)
+m = Chain(Dense(1,22))
+m([5]) # => 26
 
 
+model2 = Chain(
+  Dense(10 => 5, σ),
+  Dense(5 => 2),
+  softmax)
+
+model2(rand(10)) 

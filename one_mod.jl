@@ -10,14 +10,16 @@ plot another heatmap, but with the value as the max decision value, so we know i
 
 
 #Dummy Function definition
+m = Chain(Dense(1 => 50, sigmoid), Dense(50 => 1))
 begin
     fc′ = 30:5:90
     f2e = x -> 4700 * sqrt(x)
     f2g = x -> 0.5 * sqrt(x) / 10 
-
+    
     f2e = x -> 4700 * x
     f2g = x -> 0.5 * x / 10
 
+    f2g = sgt
     #function plot
     Es = vcat([1e-5], f2e.(fc′)) / 10000
     densities = vcat([0.0], f2g.(fc′))
@@ -56,8 +58,9 @@ densities = [0.0, 0.5, 1.0]
 Es = vcat([1e-5], f2e.(fc′)) / 10000
 densities = vcat([0.0], f2g.(fc′))
 
-
-
+f2e = m 
+f2g = m
+f2g(10)
 begin
     nmats = length(Es)
     nu = 0.3 # Poisson's ratio
@@ -93,7 +96,9 @@ begin
     # objective function -> weight minimization
     obj = y -> begin
         # _rhos = interp2(MultiMaterialVariables(y, nmats)) #rho is the density
-        ρ = f2g.(y)
+        yy = [[y1] for y1 in y]
+        ρ = f2g.(yy)
+        ρ = [y[1] for y in ρ]
         # return sum(_rhos.x) / ncells # elements have unit volumes, 0.4 is the target.
         return sum(ρ)/ncells
     end
@@ -116,10 +121,18 @@ begin
     comp_lim = 0.035
     #compliance constraint
     constr = y -> begin
+        println(y)
+        println(typeof(y))
+    
         # x = tounit(MultiMaterialVariables(y, nmats))
-
+        y = [[y1] for y1 in y]
         # _E = interp1(filter(x))
-        _E = PseudoDensities(f2e.(y))
+        y = f2e.(y)
+        y = [y[1] for y in y]
+        println(y)
+        println(typeof(y))
+        _E = PseudoDensities(abs.(y))
+        println(comp(_E))
         # println("E: ", _E)
         return comp(_E) - comp_lim #take that and multiply by the volume
     end
