@@ -8,7 +8,7 @@ x_train =[ 1, 3, 5, 7, 10]
 y_train = [58, 79, 95, 100, 122]
 
 model = Chain(Dense(1, 20, sigmoid), Dense(20, 1))
-loss(x, y) = Flux.mse(model(x), y)
+loss(x, y) = Fßlux.mse(model(x), y)
 # Training of the neural network
 learning_rate = 0.01
 optimizer = Descent(learning_rate)  # Simple gradient descent. See Flux documentation for other options.
@@ -41,11 +41,14 @@ model[1].bias
 model[2].bias
 
 loss(model, x,y) = Flux.mse(model(x), y)
-loss(model, x_train', y_train')
+loss(model, x_train, y_train)
 
+
+x_train =[ 1 3  5  7 10]
+y_train = [58 79 95 100 122]
 using Flux: train!
 opt = Descent(0.0001)
-data = [(x_train', y_train')]
+data = [(x_train, y_train)]
 for i = 1:1000
     train!(loss, Flux.params(model), data, opt);
     # model[1].weight
