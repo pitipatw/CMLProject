@@ -16,14 +16,13 @@ df_AU = df[df[!,"country"] .== "AU",:]
 df_NZ = df[df[!,"country"] .== "NZ",:]
 df_SG = df[df[!,"country"] .== "SG",:]
 
-
 using Clustering
 
 X = Matrix{Float32}(undef, 3,length(df_US[!,"strength [MPa]"]))
 X[1,:] = Flux.normalize(collect(df_US[!,"strength [MPa]"]))
 X[2,:] = Flux.normalize(collect(df_US[!,"gwp_per_kg [kgCO2e/kg]"]))
 X[3,:] = Flux.normalize(collect(df_US[!,"slope"]))
-k = 3
+k = 6
 XX = reshape(X[2:3,:], :, length(X[3,:]))
 R = kmeans(Matrix(X),k)
 @assert nclusters(R) == k
@@ -32,10 +31,14 @@ a = assignments(R)
 c = counts(R)
 M = R.centers
 
-f2 = Figure(resolution = (1200,800))
-ax2 = Axis(f2[1,1], xlabel = "strength [MPa]", ylabel = "gwp_per_kg [kgCO2e/kg]")
+f1 = Figure(resolution = (1200,800))
+ax2 = Axis(f1[1,1], xlabel = "strength [MPa]", ylabel = "gwp_per_kg [kgCO2e/kg]")
 scatter!(ax2, X[1,:], X[2,:], color = R.assignments)
-f2
+f1
+
+
+#should add this into a column in the dataframe 
+df_US[!,"Group"] = R.assignments
 
 using LazySets
 
@@ -59,16 +62,12 @@ function getCluster(df::DataFrame; T::String = "opt")
             gwp_i = df_out[i,"gwp_per_kg [kgCO2e/kg]"]
             points = push!(points,[str_i,gwp_i])
         end
-
-        nothing
+    else 
+        println("please enter a valid type: opt or pes")
     end
-
     hull = convex_hull(points)
-
-
 return reduce(vcat,transpose.(points)), reduce(vcat,transpose.(hull))
 end
-
 
 v_m,hull_m = getCluster(df_US; T = "pes")
 
@@ -80,14 +79,15 @@ v_m,hull_m = getCluster(df_US; T = "pes")
 # v_m = reduce(vcat,transpose.(v))
 # hull_m = reduce(vcat,transpose.(hull))
 
-f1 = Figure(resolution = (1200,800))
-ax1 = Axis(f1[1,1], xlabel = "strength [MPa]", ylabel = "gwp_per_kg [kgCO2e/kg]")
+# f1 = Figure(resolution = (1200,800))
+ax1 = Axis(f1[1,2], xlabel = "strength [MPa]", ylabel = "gwp_per_kg [kgCO2e/kg]")
 scatter!(v_m[:,1], v_m[:,2] , label = "points")
 scatter!(ax1,hull_m[:,1], hull_m[:,2], label = "convex hull", color = :red)
 f1
 
-
-
+list_of_groups = Vector{Array{Float64,1}}()
+for i = 1:k 
+    push!(list_of_groups, X[:,a .== i])
 
 #now we have our dataset.
 #split the data into train and test set 
