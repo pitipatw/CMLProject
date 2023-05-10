@@ -1,7 +1,7 @@
-x = rand(1000);
-y = rand(1000);
-x = collect(copy(x_train))[:]
-y = collect(copy(y_train))[:]
+# x = rand(1000);
+# y = rand(1000);
+# x = collect(copy(x_train))[:]
+# y = collect(copy(y_train))[:]
 function find_upperbound(x::Vector{Float64}, y::Vector{Float64})
     #get the bottom left most point
     x_min, x_min_i = findmin(x)
@@ -13,7 +13,7 @@ function find_upperbound(x::Vector{Float64}, y::Vector{Float64})
     for i in eachindex(x)
         remain_points = vcat(remain_points, (x[i], y[i]))
     end
-    println(remain_points)
+    # println(remain_points)
     path = [(x_min, y_min)]
     next_x = x_min
     next_y = y_min
@@ -29,12 +29,11 @@ function find_upperbound(x::Vector{Float64}, y::Vector{Float64})
             # println(1)
             if xi > x_min
                 slope_new = (yi - y_min)/(xi - x_min)
-                println("new slope: $slope_new and old slope: $slope_old")
+                # println("new slope: $slope_new and old slope: $slope_old")
                 if slope_new > slope_old
                     slope_old = slope_new
                     next_x = xi
                     next_y = yi 
-                    println("HI")
                     # println(3)
                 else
                     # println(4)
@@ -48,15 +47,12 @@ function find_upperbound(x::Vector{Float64}, y::Vector{Float64})
         y_min = next_y
         for i in eachindex(remain_points)
             # println(size(remain_points))
-            println(remain_points[i][1])
+            # println(remain_points[i][1])
             if x_min >= remain_points[i][1] || 0.7*y_min >= remain_points[i][2]
                 push!(d_idx, i)
             end
         end
-        println(d_idx)
-        println(size(remain_points))
         deleteat!(remain_points, d_idx)
-        println(size(remain_points))
         
     end
     return path
@@ -73,7 +69,7 @@ function find_lowerbound(x::Vector{Float64}, y::Vector{Float64})
     for i in eachindex(x)
         remain_points = vcat(remain_points, (x[i], y[i]))
     end
-    println(remain_points)
+    # println(remain_points)
     path = [(x_min, y_min)]
     next_x = x_min
     next_y = y_min
@@ -89,12 +85,11 @@ function find_lowerbound(x::Vector{Float64}, y::Vector{Float64})
             # println(1)
             if xi > x_min
                 slope_new = (yi - y_min)/(xi - x_min)
-                println("new slope: $slope_new and old slope: $slope_old")
+                # println("new slope: $slope_new and old slope: $slope_old")
                 if slope_new < slope_old
                     slope_old = slope_new
                     next_x = xi
                     next_y = yi 
-                    println("HI")
                     # println(3)
                 else
                     # println(4)
@@ -108,28 +103,35 @@ function find_lowerbound(x::Vector{Float64}, y::Vector{Float64})
         y_min = next_y
         for i in eachindex(remain_points)
             # println(size(remain_points))
-            println(remain_points[i][1])
+            # println(remain_points[i][1])
             if x_min >= remain_points[i][1]
                 push!(d_idx, i)
             end
         end
-        println(d_idx)
-        println(size(remain_points))
-        deleteat!(remain_points, d_idx)
-        println(size(remain_points))
-        
+        deleteat!(remain_points, d_idx)        
     end
     return path
 end
 
 
-f0 = Figure(resolution = (1200,800))
-ax0 = Axis(f0[1,1])
-scatter!(ax0, x,y)
-f0
-path1 = find_upperbound(x,y)
-path2 = find_lowerbound(x,y)
-lines!(ax0, path)
-lines!(ax0, path2)
-f0
+# f0 = Figure(resolution = (1200,800))
+# ax0 = Axis(f0[1,1])
+# scatter!(ax0, x,y)
+# f0
+# path1 = find_upperbound(x,y)
+# path2 = find_lowerbound(x,y)
+# lines!(ax0, path1)
+# lines!(ax0, path2)
+# f0
 
+"""
+Nearest Neighbor Search
+input as functions
+"""
+
+function nns(f; radius::Float64 = 0.001, mode::String = "upper")
+    if mode == "upper"
+        #get only points that above the points in the path
+
+    end
+end

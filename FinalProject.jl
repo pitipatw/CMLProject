@@ -13,21 +13,33 @@ using Statistics
 using Random
 using Distributions
 
-#inputs 
+"""
+inputs 
 country name (string, abbreviation)
 model number (N1, N2_1 , N2_2, N3_1, N3_2, N3_3)
-
+"""
 
 include("utilities.jl")
+include("findbound.jl")
+include("train_functions.jl")
 ## settings
 Makie.inline!(true) # so Makie plots are in Jupyter notebook
 
 
+
+
+#### Construct models
+models = constructModels()
+selected_model = models[4]
+#### Construct loss functions
+loss1(model, x, y) = Flux.mse(model(x), y)
+
+"""
 ## Load data
+"""
 df = CSV.read("Dataset_1.csv", DataFrame)
 ndata = size(df)[1]
 println("There are $ndata data points in the dataset.")
-
 countries = unique(df[!, "country"])
 countries = vcat(countries, "ALL")
 for i in countries 
@@ -42,67 +54,117 @@ end
 
 
 
-
+"""
 #### Select data for training/testing
+"""
 #select data with MX as country
-c = "AU"
+c = "US"
 x_total = collect(df[df[!, "country"].==c, :][!, "strength [MPa]"]);
 y_total = collect(df[df[!, "country"].==c, :][!, "gwp_per_kg [kgCO2e/kg]"]);
+
+#find the upper and lower bound
+opt_pts = find_lowerbound(x_total, y_total)
+pes_pts = find_upperbound(x_total, y_total)
+
+#convert to matrix
+opt = Matrix{Float64}(undef, length(opt_pts), 2)
+pes = Matrix{Float64}(undef, length(pes_pts), 2)
+for i in eachindex(opt_pts)
+    opt[i, :] = [opt_pts[i][1], opt_pts[i][2]]
+end
+
+for i in eachindex(pes_pts)
+    pes[i, :] = [pes_pts[i][1], pes_pts[i][2]]
+end
+
+
+
+
+#plot qmodel to check
+begin
+    x_opt = opt[:, 1]
+    y_opt = opt[:, 2]
+    x_pes = pes[:, 1]
+    y_pes = pes[:, 2]
+
+    f_opt = Figure(resolution = (800, 600))
+    ax_opt = Axis(f_opt[1, 1])
+    scatter!(ax_opt, x_total, y_total, color=:gray) #plot all data
+    scatter!(ax_opt, x_opt , y_opt, color=:blue) # plot lower bound
+    scatter!(ax_opt, x_pes, y_pes, color=:red, marker = :square) # plot upper bound
+    f_opt
+end
+
+
+x_max = maximum(data[:, 1])
+x_min = minimum(data[:, 1])
+y_max = maximum(data[:, 2])
+y_min = minimum(data[:, 2])
+
+@assert un_normalize_data(normalize_data(train_data, x_max,x_min, y_max,y_min),x_max,x_min, y_max,y_min ) == train_data
+
+train_data_n = normalize_data(train_data, x_max,x_min, y_max,y_min)
+test_data_n = normalize_data(test_data, x_max,x_min, y_max,y_min)
+
+
+qmodel = Chain(Dense(1, 50, sigmoid),Dense(50,50,sigmoid), Dense(50, 1))
+selected_model, loss_history, test_history = train_model!(qmodel, opt, opt)
+
+predict = x -> selected_model([x])[1]
+
+y_pred =  [ i[1] for i in predict.(x_opt)]
+
+lines!(ax_opt, x_opt, y_pred, color=:red)
+f_opt
+
+
+#=================================================================================#
+
 
 #### Separate the data into training and testing
 data = hcat(x_total, y_total); # data is a 2 x n matrix
 train_data, test_data = MLJ.partition(data, 0.7, multi=true, rng=100)# rng = Random.seed!(1234))
-test_data, valid_data = MLJ.partition(test_data, 0.5, rng=123)
+
 println("#"^50)
 println("There are $(size(train_data)[1]) data points in the training set.")
 println("There are $(size(test_data)[1]) data points in the testing set.")
-println("There are $(size(valid_data)[1]) data points in the validation set.")
 println("#"^50)
 
-#### Construct models
-N1 = Chain(Dense(1, 1)) #need 10000 epoch
-N2_1 = Chain(Dense(1, 10, sigmoid), Dense(10, 1)) #need less than 5000 epoch
-N2_2 = Chain(Dense(1, 10, relu), Dense(10, 1))
-N3_1 = Chain(Dense(1, 10,), Dense(10, 10, sigmoid), Dense(10, 1))
-N3_2 = Chain(Dense(1, 10,), Dense(10, 10, relu), Dense(10, 1))
+#construct models
 
-global models = [N1, N2_1, N2_2, N3_1, N3_2]
+#normalize dataset
+function normalize_data(data, x_max, x_min, y_max, y_min)
+    data[:, 1] = (data[:, 1] .- x_min) ./ (x_max - x_min)
+    data[:, 2] = (data[:, 2] .- y_min) ./ (y_max - y_min)
+    return data
+end
 
-#### Construct loss functions
-loss1(model, x, y) = Flux.mse(model(x), y)
-
-# loss2(N2,x,y) = Flux.mse(N2(x),y)
-# loss3(x,y) = Flux.mse(N3(x),y)
-# loss4(x,y) = Flux.mse(N4(x),y)
-
-# loss_history = [loss1, loss2, loss3, loss4]
-
-
-selected_model = N3_1
-epoch = 500
-loss_history = Float32[]
-test_history = Float32[]
-x_train = train_data[:, [1]]'
-y_train = train_data[:, [2]]'
-
-rule = Optimisers.Adam()  # use the Adam optimiser with its default settings
-state_tree = Optimisers.setup(rule, selected_model);  # initialise this optimiser's momentum etc.
-begin
-    for i = 1:10000
-        global selected_model, state_tree
-        dLdm, _, _ = gradient(loss1, selected_model, x_train, y_train)
-        state_tree, selected_model = Optimisers.update(state_tree, selected_model, dLdm)
-        val = loss1(selected_model, x_train, y_train)
-        testval = loss1(selected_model, test_data[:, [1]]', test_data[:, [2]]')
-        # println(val)
-        push!(loss_history, val)
-        push!(test_history, testval)
-    end
-    valid_loss=  loss1(N1, valid_data[:, [1]]', valid_data[:, [2]]')
-    println("The validation loss is $valid_loss")
+function un_normalize_data(data, x_max, x_min, y_max, y_min)
+    data[:, 1] = data[:, 1] .* (x_max - x_min) .+ x_min
+    data[:, 2] = data[:, 2] .* (y_max - y_min) .+ y_min
+    return data
 end
 
 
+x_max = maximum(data[:, 1])
+x_min = minimum(data[:, 1])
+y_max = maximum(data[:, 2])
+y_min = minimum(data[:, 2])
+
+@assert un_normalize_data(normalize_data(train_data, x_max,x_min, y_max,y_min),x_max,x_min, y_max,y_min ) == train_data
+
+
+train_data_n = normalize_data(train_data, x_max,x_min, y_max,y_min)
+test_data_n = normalize_data(test_data, x_max,x_min, y_max,y_min)
+selected_model, loss_history, test_history, valid_loss = train_model!(selected_model, train_data, test_data)
+
+# design variables are fc′
+# assign model into function
+f2e = x -> sqrt.(x) #normalized modulus
+f2g = x -> selected_model([x]) #will have to broadcast later.
+
+
+begin
 #plot loss and test 
 f_loss = Figure(resolution=(1200, 800))
 ax1 = Axis(f_loss[1, 1], xlabel="Epoch", ylabel="Loss", yscale=log10, title = "Loss vs Epoch")
@@ -117,8 +179,9 @@ ax1.ylabelsize = 30
 ax1.titlesize = 40
 ax1.yticklabelsize = 23
 f_loss
+end
 
-
+begin
 f_pva = Figure(resolution=(1200, 800))
 ax_pva = Axis(f_pva[1, 1], xlabel="Predicted", ylabel="Acctual ")
 ax_pva.title = "Actual vs Predicted GWP [kgCO2e/kg]"
@@ -130,163 +193,8 @@ Legend(f_pva[1, 2],
     [ln],
     ["y=x"])
 f_pva
+end
 
 
 #plot line compare with the actual data
 f_with_sur = plot_country(df[df[!, "country"].==c, :], c, selected_model)
-
-
-
-
-"""
-##########################################################
-##########################################################
-##########################################################
-##########################################################
-##########################################################
-##########################################################
-"""
-
-
-#### setup Topology Optimization for continuum #####
-#get benchmark problem
-include("Benchmark1.jl")
-
-# design variables are fc′
-# assign model into function
-f2e = x -> sqrt.(x) #normalized modulus
-f2g = x -> selected_model([x]) #will have to broadcast later.
-
-
-compliance_threshold = 1000 # maximum compliance
-
-
-E = 1.0 # Young’s modulus
-v = 0.3 # Poisson’s ratio
-f = 2.0 # downward force
-rmin = 2.0 # filter radius
-xmin = 0.0001 # minimum density
-problem_size = (60, 20)
-x0 = vcat(fill(1.0, prod(problem_size)), fill(100.0, prod(problem_size))) # initial design
-println(size(x0))
-p = 1.0 # penalty
-
-# Young's modulus interpolation for compliance
-# penalty1 = TopOpt.PowerPenalty(1.0) # take young modulus in each material 
-# interp1 = MaterialInterpolation(Es, penalty1)
-
-# # density interpolation for mass constraint
-# penalty2 = TopOpt.PowerPenalty(1.0) #no penalty.
-# interp2 = MaterialInterpolation(densities, penalty2)
-
-
-
-
-# problem = PointLoadCantilever(Val{:Linear}, problem_size, (1.0, 1.0), E, v, f)
-problem = HalfMBB(Val{:Linear}, problem_size, (1.0, 1.0), E, v, f)
-
-#problem = HalfMBB(Val{:Linear}, problem_size, (1.0, 1.0), E, v, f)
-
-solver = FEASolver(Direct, problem; xmin=xmin)
-
-cheqfilter = DensityFilter(solver; rmin=rmin)
-stress = TopOpt.von_mises_stress_function(solver)
-comp = TopOpt.Compliance(solver)
-
-function obj(x)
-    # function constr(x)
-    f = x[Int32(length(x) / 2)+1:end]
-    v = x[1:Int32(length(x) / 2)]
-    g = [x[1] for x in f2g.(f)]
-    # minimize volume
-    return sum(cheqfilter(PseudoDensities(v))) / length(x) - 0.1
-end
-function constr(x)
-    # function obj(x)
-    # compliance upper-bound
-    f = x[Int32(length(x) / 2)+1:end]
-    v = x[1:Int32(length(x) / 2)]
-    return comp(cheqfilter(PseudoDensities(v .* (f2e(f))))) #- compliance_threshold
-end
-
-constr(x0)
-gradient(constr, x0)
-gradient(obj, x0)
-m = TopOpt.Model(obj)
-addvar!(m, vcat(zeros(length(x0) ÷ 2), 10 * ones(length(x0) ÷ 2)), vcat(ones(length(x0) ÷ 2), 100 * ones(length(x0) ÷ 2)))
-Nonconvex.add_ineq_constraint!(m, constr)
-
-options = MMAOptions(; maxiter=1000, tol=Tolerance(; kkt=1e-4, x=1e-4, f=1e-4))
-TopOpt.setpenalty!(solver, p)
-@time r = Nonconvex.optimize(
-    m, MMA87(; dualoptimizer=ConjugateGradient()), x0; options=options
-)
-
-
-
-
-Amin = r.minimizer[1:Int32(length(r.minimizer) / 2)]
-fmin = r.minimizer[Int32(length(r.minimizer) / 2)+1:end]
-fmax = maximum(fmin)
-fmin_n = fmin ./ fmax
-@show obj(r.minimizer)
-@show constr(r.minimizer)
-
-@show maximum(stress(cheqfilter(PseudoDensities(Amin))))
-topology = cheqfilter(PseudoDensities(Amin)).x
-
-fig1 = visualize(problem; solver.u, topology=Amin, default_exagg_scale=0.0, scale_range=10.0)
-Makie.display(fig1)
-
-fig2 = visualize(problem; solver.u, topology=fmin_n, default_exagg_scale=0.0, scale_range=10.0)
-Makie.display(fig2)
-
-
-mapping = Array{Int64,2}(undef, ncells, 2)
-for i in 1:160*40
-    mapping[i, :] = [div(i, 160) + 1, mod(i, 160)]
-end
-
-f2 = Figure(resolution=(1000, 3000))
-ax3 = Axis(f2[1, 1])
-scatter!(ax3, mapping[:, 2], mapping[:, 1], color=y)
-
-
-ax4, hm1 = heatmap(f2[2, 1], mapping[:, 2], mapping[:, 1], y)
-ax5, hm2 = heatmap(f2[3, 1], mapping[:, 2], mapping[:, 1], y)
-
-cbar1 = Colorbar(f2[1, 2])
-cbar2 = Colorbar(f2[2, 2], hm1)
-cbar3 = Colorbar(f2[3, 2], hm2)
-f2
-
-
-
-ax3.title = "penalty 3"
-save("penalty3.png", f2)
-
-
-
-cbar.ticks = ([-0.66, 0, 0.66], ["negative", "neutral", "positive"])
-ax2.title = "comp: " * string(comp_lim)
-ax2.title = "3mat"
-using Colors, ColorSchemes
-figure = (; resolution=(600, 400), font="CMU Serif")
-axis = (; xlabel=L"x", ylabel=L"y", aspect=DataAspect())
-#cmap = ColorScheme(range(colorant"red", colorant"green", length=3))
-# this is another way to obtain a colormap, not used here, but try it.
-mycmap = ColorScheme([RGB{Float64}(i, 1.5i, 2i) for i in [0.0, 0.25, 0.35, 0.5]])
-fig, ax2, pltobj = heatmap(rand(-1:1, 20, 20);
-    colormap=cgrad(mycmap, 3, categorical=true, rev=true), # cgrad and Symbol, mycmap
-    axis=axis, figure=figure)
-cbar = Colorbar(fig[1, 2], pltobj, label="Categories")
-cbar.ticks = ([-0.66, 0, 0.66], ["negative", "neutral", "positive"])
-f1
-f2
-optobj = obj(y)
-text!("$optobj")
-strval = split(string(comp_lim), ".")
-# name = "aaafc_adjusted_multimat_compConts"*strval[1]*strval[2]*".png"
-save(name, f2)
-
-# end

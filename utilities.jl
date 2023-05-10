@@ -246,7 +246,9 @@ function plot_country(df::DataFrame, country::String, model::Chain; savefig::Boo
 	ax.xlabelsize = 30
 	ax.ylabelsize = 30
 	scatter!(ax, df[!, "strength [MPa]"], df[!, "gwp_per_kg [kgCO2e/kg]"], color=:blue, markersize=20)
-	lines!(ax, 0:0.1:xmax, model.(0:0.1:xmax), color=:red, linewidth=3)
+    xval = collect(10:0.1:xmax)
+    xval_ = [ [x] for x in xval]
+	lines!(ax, xval, [x[1] for x in model.(xval_)], color=:red, linewidth=3)
     f
 	if savefig
         name = "$country"*"withSur.png"
@@ -256,3 +258,12 @@ function plot_country(df::DataFrame, country::String, model::Chain; savefig::Boo
 	println("Done!")
 	return f
 end;
+
+function constructModels()
+    N1 = Chain(Dense(1, 1)) #need 10000 epoch
+    N2_1 = Chain(Dense(1, 10, sigmoid), Dense(10, 1)) #need less than 5000 epoch
+    N2_2 = Chain(Dense(1, 10, relu), Dense(10, 1))
+    N3_1 = Chain(Dense(1, 10,), Dense(10, 10, sigmoid), Dense(10, 1))
+    N3_2 = Chain(Dense(1, 10,), Dense(10, 10, relu), Dense(10, 1))
+    return [N1, N2_1, N2_2, N3_1, N3_2]
+end
