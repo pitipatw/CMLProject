@@ -13,6 +13,11 @@ using Statistics
 using Random
 using Distributions
 
+#inputs 
+country name (string, abbreviation)
+model number (N1, N2_1 , N2_2, N3_1, N3_2, N3_3)
+
+
 include("utilities.jl")
 ## settings
 Makie.inline!(true) # so Makie plots are in Jupyter notebook
@@ -40,7 +45,7 @@ end
 
 #### Select data for training/testing
 #select data with MX as country
-c = "MX"
+c = "AU"
 x_total = collect(df[df[!, "country"].==c, :][!, "strength [MPa]"]);
 y_total = collect(df[df[!, "country"].==c, :][!, "gwp_per_kg [kgCO2e/kg]"]);
 
@@ -55,8 +60,8 @@ println("There are $(size(valid_data)[1]) data points in the validation set.")
 println("#"^50)
 
 #### Construct models
-N1 = Dense(1, 1)
-N2_1 = Chain(Dense(1, 10, sigmoid), Dense(10, 1))
+N1 = Chain(Dense(1, 1)) #need 10000 epoch
+N2_1 = Chain(Dense(1, 10, sigmoid), Dense(10, 1)) #need less than 5000 epoch
 N2_2 = Chain(Dense(1, 10, relu), Dense(10, 1))
 N3_1 = Chain(Dense(1, 10,), Dense(10, 10, sigmoid), Dense(10, 1))
 N3_2 = Chain(Dense(1, 10,), Dense(10, 10, relu), Dense(10, 1))
@@ -73,7 +78,7 @@ loss1(model, x, y) = Flux.mse(model(x), y)
 # loss_history = [loss1, loss2, loss3, loss4]
 
 
-
+selected_model = N3_1
 epoch = 500
 loss_history = Float32[]
 test_history = Float32[]
@@ -81,14 +86,14 @@ x_train = train_data[:, [1]]'
 y_train = train_data[:, [2]]'
 
 rule = Optimisers.Adam()  # use the Adam optimiser with its default settings
-state_tree = Optimisers.setup(rule, N1);  # initialise this optimiser's momentum etc.
+state_tree = Optimisers.setup(rule, selected_model);  # initialise this optimiser's momentum etc.
 begin
-    for i = 1:1000
-        global N1, state_tree
-        dLdm, _, _ = gradient(loss1, N1, x_train, y_train)
-        state_tree, N1 = Optimisers.update(state_tree, N1, dLdm)
-        val = loss1(N1, x_train, y_train)
-        testval = loss1(N1, test_data[:, [1]]', test_data[:, [2]]')
+    for i = 1:10000
+        global selected_model, state_tree
+        dLdm, _, _ = gradient(loss1, selected_model, x_train, y_train)
+        state_tree, selected_model = Optimisers.update(state_tree, selected_model, dLdm)
+        val = loss1(selected_model, x_train, y_train)
+        testval = loss1(selected_model, test_data[:, [1]]', test_data[:, [2]]')
         # println(val)
         push!(loss_history, val)
         push!(test_history, testval)
@@ -96,26 +101,22 @@ begin
     valid_loss=  loss1(N1, valid_data[:, [1]]', valid_data[:, [2]]')
     println("The validation loss is $valid_loss")
 end
-# design variables are fc′
-# assign model into function
-f2e = x -> sqrt.(x) #normalized modulus
-f2g = x -> N1([x])
 
 
 #plot loss and test 
-f1 = Figure(resolution=(1200, 800))
-ax1 = Axis(f1[1, 1], xlabel="Epoch", ylabel="Loss", yscale=log10, title = "Loss vs Epoch")
+f_loss = Figure(resolution=(1200, 800))
+ax1 = Axis(f_loss[1, 1], xlabel="Epoch", ylabel="Loss", yscale=log10, title = "Loss vs Epoch")
 lin = lines!(ax1, loss_history, markersize=7.5, color=:red)
 sca = scatter!(ax1, test_history, markersize=7.5)
 ax1.subtitle = "Loss is $(valid_loss)"
-Legend(f1[1, 2],
+Legend(f_loss[1, 2],
     [sca, lin],
     ["testing loss_history", "training loss_history"])
 ax1.xlabelsize = 30
 ax1.ylabelsize = 30
 ax1.titlesize = 40
 ax1.yticklabelsize = 23
-f1
+f_loss
 
 
 f_pva = Figure(resolution=(1200, 800))
@@ -132,28 +133,29 @@ f_pva
 
 
 #plot line compare with the actual data
-f5 = Figure(resolution=(1200, 800))
-ax3 = Axis(f5[1, 2], xlabel="Strength [MPa]", ylabel="GWP [kgCO2e/kg]")
-ax3.title = "Strength vs GWP predicted plot"
-ax3.titlesize = 40
-xval = 12:1:80
-lines!(ax_MX, xval, [x[1] for x in f2g.(xval)], color=:red, markersize=3)
-scatter!(ax5, df_MX[!, "strength [MPa]"], df_MX[!, "gwp_per_kg [kgCO2e/kg]"], color=:red, markersize=10)
-f5
-f3
-f_MX
+f_with_sur = plot_country(df[df[!, "country"].==c, :], c, selected_model)
 
 
 
-f_IN
-save("INwithSur.png", f_IN)
 
+"""
+##########################################################
+##########################################################
+##########################################################
+##########################################################
+##########################################################
+##########################################################
+"""
 
 
 #### setup Topology Optimization for continuum #####
-save("MXwithSur.png", f_MX)
 #get benchmark problem
 include("Benchmark1.jl")
+
+# design variables are fc′
+# assign model into function
+f2e = x -> sqrt.(x) #normalized modulus
+f2g = x -> selected_model([x]) #will have to broadcast later.
 
 
 compliance_threshold = 1000 # maximum compliance
