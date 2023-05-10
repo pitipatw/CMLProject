@@ -90,7 +90,7 @@ function removeNothing(df::DataFrame)
         end
     end
     return removed_columns
-end
+end;
 
 function replaceNothing(df::DataFrame)
     list_of_names = []
@@ -119,7 +119,7 @@ function replaceNothing(df::DataFrame)
 
     sort!(list_of_names)
     return list_of_names
-end
+end;
 
 
 function splitNum_Unit(df::DataFrame, colname::String)
@@ -161,7 +161,7 @@ function splitNum_Unit(df::DataFrame, colname::String)
         end
     end
     return numerics, units
-end
+end;
 
 function splitNum_Unit(df::DataFrame, colname::String, key::String)
     numerics = zeros(Float64, length(df.gwp))
@@ -197,4 +197,33 @@ function splitNum_Unit(df::DataFrame, colname::String, key::String)
         end
     end
     return numerics, units
-end
+end;
+
+
+
+function plot_country(df::DataFrame, country::String; savefig::Bool = true)
+	f = Figure(resolution=(1200, 800))
+	ax = Axis(f[1, 1], xlabel="Strength [MPa]", ylabel="GWP [kgCO2e/kg]")
+	ax.title = "Strength vs GWP ($country)"
+	ax.titlesize = 40
+	xmax = maximum(df[!, "strength [MPa]"])
+	ymax = maximum(df[!, "gwp_per_kg [kgCO2e/kg]"])
+	if size(df)[1] < 10
+		ax.xticks = 0:1:xmax
+		ax.yticks = 0:0.01:ymax
+	else
+		ax.xticks = 0:10:xmax
+		ax.yticks = 0:0.05:ymax
+	end
+	ax.xticks = 0:10:xmax
+	ax.xlabelsize = 30
+	ax.ylabelsize = 30
+	scatter!(ax, df[!, "strength [MPa]"], df[!, "gwp_per_kg [kgCO2e/kg]"], color=:blue, markersize=20)
+	f
+	if savefig
+		save("Plot_by_countries/$country.png", f)
+		println("File save to Plot_by_countries/$country.png")
+	end
+	println("Done!")
+	return f
+end;

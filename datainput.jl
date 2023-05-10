@@ -40,6 +40,13 @@ f1
 #should add this into a column in the dataframe 
 df_US[!,"Group"] = R.assignments
 
+for i in 1:k 
+    ax1  = (
+        
+    )
+end
+
+
 using LazySets
 
 #take the strength [Mpa] and gwp_per_kg [kgCO2e/kg] for the train and test dataset. 
@@ -88,7 +95,7 @@ f1
 list_of_groups = Vector{Array{Float64,1}}()
 for i = 1:k 
     push!(list_of_groups, X[:,a .== i])
-
+end
 #now we have our dataset.
 #split the data into train and test set 
 ndata = size(v_m)[1]
@@ -178,33 +185,10 @@ x12  = [(x1[i],x2[i]) for i in 1:length(x1)]
 scatter!(x1,x2, sgt.(x12), label="randomly sampled data")
 
 
+include("mySurrogate.jl")
 
-
-lb = 0.0
-ub = 50.0
-
-
-#Creating surrogate
-alpha = 2.0
-n = 2
-my_lobachevsky = LobachevskySurrogate(x_train,y_train,lb,ub,alpha=alpha,n=n)
-#Approximating value at 5.0
+model
+model([1])
 
 
 
-value = my_lobachevsky(55.0)
-
-#plot the original data and randomly sample data
-x_rand = sample(10,lb,ub,SobolSample())
-y_rand = my_lobachevsky.(x_rand)
-fig = Figure(resolution = (1200,800))
-ax1 = Axis(fig, xlabel = "strength [MPa]", ylabel = "gwp_per_kg [kgCO2e/kg]")
-scatter(x,y,label="original data")
-scatter!(x_rand,y_rand,label="randomly sampled data")
-
-
-#Adding more data points
-surrogate_optimize(f,SRBF(),lb,ub,my_lobachevsky,UniformSample())
-
-#New approximation
-value = my_lobachevsky(5.0)
