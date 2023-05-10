@@ -6,6 +6,7 @@ using Makie, GLMakie
 using CSV, DataFrames
 using Clustering
 #These are for the surrogate model
+using Optimisers
 using Flux, Zygote, MLJ
 using SurrogatesFlux, Surrogates
 using Statistics
@@ -38,19 +39,22 @@ end
 
 
 #### Select data for training/testing
-x_total = collect(df_MX[!, "strength [MPa]"]);
-y_total = collect(df_MX[!, "gwp_per_kg [kgCO2e/kg]"]);
-
-x_total = collect(df_IN[!, "strength [MPa]"]);
-y_total = collect(df_IN[!, "gwp_per_kg [kgCO2e/kg]"]);
+#select data with MX as country
+c = "MX"
+x_total = collect(df[df[!, "country"].==c, :][!, "strength [MPa]"]);
+y_total = collect(df[df[!, "country"].==c, :][!, "gwp_per_kg [kgCO2e/kg]"]);
 
 #### Separate the data into training and testing
 data = hcat(x_total, y_total); # data is a 2 x n matrix
 train_data, test_data = MLJ.partition(data, 0.7, multi=true, rng=100)# rng = Random.seed!(1234))
 test_data, valid_data = MLJ.partition(test_data, 0.5, rng=123)
+println("#"^50)
+println("There are $(size(train_data)[1]) data points in the training set.")
+println("There are $(size(test_data)[1]) data points in the testing set.")
+println("There are $(size(valid_data)[1]) data points in the validation set.")
+println("#"^50)
 
-
-#### Construct model
+#### Construct models
 N1 = Dense(1, 1)
 N2_1 = Chain(Dense(1, 10, sigmoid), Dense(10, 1))
 N2_2 = Chain(Dense(1, 10, relu), Dense(10, 1))
@@ -59,72 +63,77 @@ N3_2 = Chain(Dense(1, 10,), Dense(10, 10, relu), Dense(10, 1))
 
 global models = [N1, N2_1, N2_2, N3_1, N3_2]
 
+#### Construct loss functions
+loss1(model, x, y) = Flux.mse(model(x), y)
+
 # loss2(N2,x,y) = Flux.mse(N2(x),y)
 # loss3(x,y) = Flux.mse(N3(x),y)
 # loss4(x,y) = Flux.mse(N4(x),y)
 
-# losses = [loss1, loss2, loss3, loss4]
+# loss_history = [loss1, loss2, loss3, loss4]
 
-# function my_accuracy( model , )
-opt = Descent(0.01)
-# opt = [Descent(0.01), Descent(0.01), Descent(0.01), Descent(0.01)]
+
+
 epoch = 500
-opt = Adam()
-
-
-nrow = size(train_data)[1]
-# my_log = []
-
-# for epoch in 1:100
-losses = Float32[]
-testes = Float32[]
+loss_history = Float32[]
+test_history = Float32[]
 x_train = train_data[:, [1]]'
 y_train = train_data[:, [2]]'
 
-loss1(model, x, y) = Flux.mse(model(x), y)
-using Optimisers
 rule = Optimisers.Adam()  # use the Adam optimiser with its default settings
 state_tree = Optimisers.setup(rule, N1);  # initialise this optimiser's momentum etc.
-
-for i = 1:1000
-    global N1, state_tree
-    dLdm, _, _ = gradient(loss1, N1, x_train, y_train)
-    state_tree, N1 = Optimisers.update(state_tree, N1, dLdm)
-    val = loss1(N1, x_train, y_train)
-    testval = loss1(N1, test_data[:, [1]]', test_data[:, [2]]')
-    # println(val)
-    push!(losses, val)
-    push!(testes, testval)
-
+begin
+    for i = 1:1000
+        global N1, state_tree
+        dLdm, _, _ = gradient(loss1, N1, x_train, y_train)
+        state_tree, N1 = Optimisers.update(state_tree, N1, dLdm)
+        val = loss1(N1, x_train, y_train)
+        testval = loss1(N1, test_data[:, [1]]', test_data[:, [2]]')
+        # println(val)
+        push!(loss_history, val)
+        push!(test_history, testval)
+    end
+    valid_loss=  loss1(N1, valid_data[:, [1]]', valid_data[:, [2]]')
+    println("The validation loss is $valid_loss")
 end
 # design variables are fc′
-f2e = x -> sqrt.(x)
+# assign model into function
+f2e = x -> sqrt.(x) #normalized modulus
 f2g = x -> N1([x])
 
 
-
-f3 = Figure(resolution=(1200, 800))
-ax3 = Axis(f3[1, 1], xlabel="Epoch", ylabel="Loss", yscale=log10)
-lin = lines!(ax3, losses, markersize=7.5, color=:red)
-sca = scatter!(ax3, testes, markersize=7.5)
-
-Legend(f3[1, 2],
+#plot loss and test 
+f1 = Figure(resolution=(1200, 800))
+ax1 = Axis(f1[1, 1], xlabel="Epoch", ylabel="Loss", yscale=log10, title = "Loss vs Epoch")
+lin = lines!(ax1, loss_history, markersize=7.5, color=:red)
+sca = scatter!(ax1, test_history, markersize=7.5)
+ax1.subtitle = "Loss is $(valid_loss)"
+Legend(f1[1, 2],
     [sca, lin],
-    ["testing losses", "training losses"])
-f3
-
-f4 = Figure(resolution=(1200, 800))
-ax4 = Axis(f4[1, 1], xlabel="Predicted", ylabel="Acctual ")
-ax4.title = "Actual vs Predicted GWP [kgCO2e/kg]"
-
-scatter!(ax4, valid_data[:, 2], [x[1] for x in f2g.(valid_data[:, 1])], color=:red, markersize=10)
-lines!(ax4, valid_data[:, 2], valid_data[:, 2])
-# scatter!(ax4, x_, , color = :red, markersize = 3)
-f4
+    ["testing loss_history", "training loss_history"])
+ax1.xlabelsize = 30
+ax1.ylabelsize = 30
+ax1.titlesize = 40
+ax1.yticklabelsize = 23
+f1
 
 
+f_pva = Figure(resolution=(1200, 800))
+ax_pva = Axis(f_pva[1, 1], xlabel="Predicted", ylabel="Acctual ")
+ax_pva.title = "Actual vs Predicted GWP [kgCO2e/kg]"
+
+scatter!(ax_pva, valid_data[:, 2], [x[1] for x in f2g.(valid_data[:, 1])], color=:red, markersize=10)
+ln = lines!(ax_pva, valid_data[:, 2], valid_data[:, 2])
+
+Legend(f_pva[1, 2],
+    [ln],
+    ["y=x"])
+f_pva
+
+
+#plot line compare with the actual data
 f5 = Figure(resolution=(1200, 800))
-ax3 = Axis(f[1, 2], xlabel="Strength [MPa]", ylabel="GWP [kgCO2e/kg]")
+ax3 = Axis(f5[1, 2], xlabel="Strength [MPa]", ylabel="GWP [kgCO2e/kg]")
 ax3.title = "Strength vs GWP predicted plot"
 ax3.titlesize = 40
 xval = 12:1:80
