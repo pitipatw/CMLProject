@@ -12,7 +12,8 @@ using SurrogatesFlux, Surrogates
 using Statistics
 using Random
 using Distributions
-
+#style
+using ProgressLogging
 """
 inputs 
 country name (string, abbreviation)
@@ -58,7 +59,7 @@ end
 #### Select data for training/testing
 """
 #select data with MX as country
-c = "US"
+c = "IN"
 x_total = collect(df[df[!, "country"].==c, :][!, "strength [MPa]"]);
 y_total = collect(df[df[!, "country"].==c, :][!, "gwp_per_kg [kgCO2e/kg]"]);
 
@@ -96,15 +97,15 @@ begin
 end
 
 
-x_max = maximum(data[:, 1])
-x_min = minimum(data[:, 1])
-y_max = maximum(data[:, 2])
-y_min = minimum(data[:, 2])
+# x_max = maximum(data[:, 1])
+# x_min = minimum(data[:, 1])
+# y_max = maximum(data[:, 2])
+# y_min = minimum(data[:, 2])
 
-@assert un_normalize_data(normalize_data(train_data, x_max,x_min, y_max,y_min),x_max,x_min, y_max,y_min ) == train_data
+# @assert un_normalize_data(normalize_data(train_data, x_max,x_min, y_max,y_min),x_max,x_min, y_max,y_min ) == train_data
 
-train_data_n = normalize_data(train_data, x_max,x_min, y_max,y_min)
-test_data_n = normalize_data(test_data, x_max,x_min, y_max,y_min)
+# train_data_n = normalize_data(train_data, x_max,x_min, y_max,y_min)
+# test_data_n = normalize_data(test_data, x_max,x_min, y_max,y_min)
 
 
 qmodel = Chain(Dense(1, 50, sigmoid),Dense(50,50,sigmoid), Dense(50, 1))
@@ -156,20 +157,27 @@ y_min = minimum(data[:, 2])
 
 train_data_n = normalize_data(train_data, x_max,x_min, y_max,y_min)
 test_data_n = normalize_data(test_data, x_max,x_min, y_max,y_min)
-selected_model, loss_history, test_history, valid_loss = train_model!(selected_model, train_data, test_data)
+#plot data Distributions
+f_dis = Figure(resolution=(800, 600)) 
+ax_dis = Axis(f_dis[1, 1], xlabel="x", ylabel="y", title="Data Distribution")
+hist(x_total, bins=20, alpha=0.5, label="x", color=:red)
+hist(test_data_n[:, 1], bins=20, alpha=0.5, label="x_train", color=:blue)
+
+selected_model = models[4]
+selected_model, model_loss_history, test_loss_history = train_model!(selected_model, train_data, test_data)
 
 # design variables are fc′
 # assign model into function
 f2e = x -> sqrt.(x) #normalized modulus
-f2g = x -> selected_model([x]) #will have to broadcast later.
-
+f2g = x -> un_normalize_data(selected_model([x]),x_max,x_min, y_max,y_min)#will have to broadcast later.
+f2g = x -> selected_model([x])[1] #will have to broadcast later.
 
 begin
 #plot loss and test 
 f_loss = Figure(resolution=(1200, 800))
 ax1 = Axis(f_loss[1, 1], xlabel="Epoch", ylabel="Loss", yscale=log10, title = "Loss vs Epoch")
-lin = lines!(ax1, loss_history, markersize=7.5, color=:red)
-sca = scatter!(ax1, test_history, markersize=7.5)
+lin = lines!(ax1, model_loss_history, markersize=7.5, color=:red)
+sca = scatter!(ax1, test_loss_history, markersize=7.5)
 ax1.subtitle = "Loss is $(valid_loss)"
 Legend(f_loss[1, 2],
     [sca, lin],
@@ -186,8 +194,8 @@ f_pva = Figure(resolution=(1200, 800))
 ax_pva = Axis(f_pva[1, 1], xlabel="Predicted", ylabel="Acctual ")
 ax_pva.title = "Actual vs Predicted GWP [kgCO2e/kg]"
 
-scatter!(ax_pva, valid_data[:, 2], [x[1] for x in f2g.(valid_data[:, 1])], color=:red, markersize=10)
-ln = lines!(ax_pva, valid_data[:, 2], valid_data[:, 2])
+scatter!(ax_pva, test_data[:, 2], [x[1] for x in f2g.(test_data[:, 1])], color=:red, markersize=10)
+ln = lines!(ax_pva, test_data[:, 2], test_data[:, 2])
 
 Legend(f_pva[1, 2],
     [ln],
