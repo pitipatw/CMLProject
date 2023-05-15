@@ -14,7 +14,7 @@ function train_model!(selected_model, train_data, test_data ; epoch_lim = 10000,
     epoch = 0 
     # if batchsize == 0
 
-    while epoch < epoch_lim && model_loss_history[end] > 0.0001
+    while epoch < epoch_lim && (model_loss_history[end] > 0.0001 || test_loss_history[end] > 0.0001)
         epoch += 1 
         dLdm = gradient(loss1, selected_model, x_train, y_train)[1]
         # state_tree, selected_model = Optimisers.update(state_tree, selected_model, dLdm)

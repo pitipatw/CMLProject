@@ -12,21 +12,23 @@
 
 #### setup Topology Optimization for continuum #####
 #get benchmark problem
-include("Benchmark1.jl")
+# include("Benchmark1.jl")
 
 
 
 
-compliance_threshold = 1000 # maximum compliance
-
-
+# (min at 50)
+compliance_threshold = 500 # maximum compliance
+lc = [4000,3000, 2000, 1000, 900, 800, 700, 600, 500, 400, 300, 250,200, 100, 90, 80, 70, 60, 50, 49, 48, 47, 46]
+for i in lc
+    compliance_threshold  =  i
 E = 1.0 # Young’s modulus
 v = 0.3 # Poisson’s ratio
 f = 2.0 # downward force
-rmin = 2.0 # filter radius
+rmin = 4.0 # filter radius
 xmin = 0.0001 # minimum density
 problem_size = (60, 20)
-x0 = vcat(fill(1.0, prod(problem_size)), fill(100.0, prod(problem_size))) # initial design
+x0 = vcat(fill(1.0, prod(problem_size)), fill(80.0, prod(problem_size))) # initial design
 println(size(x0))
 p = 1.0 # penalty
 
@@ -44,7 +46,6 @@ p = 1.0 # penalty
 # problem = PointLoadCantilever(Val{:Linear}, problem_size, (1.0, 1.0), E, v, f)
 problem = HalfMBB(Val{:Linear}, problem_size, (1.0, 1.0), E, v, f)
 
-#problem = HalfMBB(Val{:Linear}, problem_size, (1.0, 1.0), E, v, f)
 
 solver = FEASolver(Direct, problem; xmin=xmin)
 
@@ -54,21 +55,24 @@ comp = TopOpt.Compliance(solver)
 
 function obj(x)
     # function constr(x)
-    f = x[Int32(length(x) / 2)+1:end]
-    v = x[1:Int32(length(x) / 2)]
-    g = [x[1] for x in f2g.(f)]
+    fc = x[Int32(length(x) / 2)+1:end]
+    den = x[1:Int32(length(x) / 2)]
+    gwp = [x[1] for x in f2g.(fc)]
     # minimize volume
-    return sum(cheqfilter(PseudoDensities(v))) / length(x) - 0.1
+    return sum(cheqfilter(PseudoDensities(den.^3 .* gwp))) / length(x)*2 #- 0.4
 end
 function constr(x)
     # function obj(x)
     # compliance upper-bound
     f = x[Int32(length(x) / 2)+1:end]
-    v = x[1:Int32(length(x) / 2)]
-    return comp(cheqfilter(PseudoDensities(v .* (f2e(f))))) #- compliance_threshold
+    E = f2e(f)
+    den = x[1:Int32(length(x) / 2)]
+    return comp(cheqfilter(PseudoDensities(den .* E))) - compliance_threshold
 end
 
-constr(x0)
+
+@show constr(x0)
+obj(x0)
 gradient(constr, x0)
 gradient(obj, x0)
 m = TopOpt.Model(obj)
@@ -92,60 +96,52 @@ fmin_n = fmin ./ fmax
 @show constr(r.minimizer)
 
 @show maximum(stress(cheqfilter(PseudoDensities(Amin))))
-topology = cheqfilter(PseudoDensities(Amin)).x
-
+Amin = cheqfilter(PseudoDensities(Amin)).x
+fmin = cheqfilter(PseudoDensities(fmin)).x
 fig1 = visualize(problem; solver.u, topology=Amin, default_exagg_scale=0.0, scale_range=10.0)
 Makie.display(fig1)
 
 fig2 = visualize(problem; solver.u, topology=fmin_n, default_exagg_scale=0.0, scale_range=10.0)
 Makie.display(fig2)
 
-
+Am= fmin_n
 mapping = Array{Int64,2}(undef, ncells, 2)
-for i in 1:160*40
-    mapping[i, :] = [div(i, 160) + 1, mod(i, 160)]
+for i in 1:60*20
+    x = mod(i, 60)
+    y = div(i, 60)+1
+    if x == 0 
+        x = 60
+        y = y-1
+    end
+    mapping[i, :] = [x,y]
 end
 
-f2 = Figure(resolution=(1000, 3000))
-ax3 = Axis(f2[1, 1])
-scatter!(ax3, mapping[:, 2], mapping[:, 1], color=y)
+# ax3 = Axis(f2[1, 1])
+# scatter!(ax3, mapping[:, 2], mapping[:, 1], color=y)
 
+f2 = Figure(resolution=(600, 200))
 
-ax4, hm1 = heatmap(f2[2, 1], mapping[:, 2], mapping[:, 1], y)
-ax5, hm2 = heatmap(f2[3, 1], mapping[:, 2], mapping[:, 1], y)
+ax4, hm1 = heatmap(f2[1, 1], mapping[:, 1], mapping[:, 2], Amin)
 
-cbar1 = Colorbar(f2[1, 2])
-cbar2 = Colorbar(f2[2, 2], hm1)
-cbar3 = Colorbar(f2[3, 2], hm2)
+f3 = Figure(resolution=(600, 200))
+
+ax5, hm2 = heatmap(f3[1, 1], mapping[:, 1], mapping[:, 2], fmin)
+# ax6, hm3 = heatmap(f2[3, 1], mapping[:, 1], mapping[:, 2], fmin.*Amin)
+
+ax4.title = "Area (desity)"
+ax5.title = "fc′"
+ax4.aspect = 3
+ax5.aspect = 3
+# cbar1 = Colorbar(f2[1, 2])
+cbar1 = Colorbar(f2[1,2], hm1)
+cbar2 = Colorbar(f3[1,2], hm2)
+
+# cbar3 = Colorbar(f2[3,2], hm3)
 f2
+f3
+save("area"*string(compliance_threshold)*"fil"*".png", f2)
+save("fc"*string(compliance_threshold)*"fil"*".png", f3)
 
+end
 
-
-ax3.title = "penalty 3"
-save("penalty3.png", f2)
-
-
-
-cbar.ticks = ([-0.66, 0, 0.66], ["negative", "neutral", "positive"])
-ax2.title = "comp: " * string(comp_lim)
-ax2.title = "3mat"
-using Colors, ColorSchemes
-figure = (; resolution=(600, 400), font="CMU Serif")
-axis = (; xlabel=L"x", ylabel=L"y", aspect=DataAspect())
-#cmap = ColorScheme(range(colorant"red", colorant"green", length=3))
-# this is another way to obtain a colormap, not used here, but try it.
-mycmap = ColorScheme([RGB{Float64}(i, 1.5i, 2i) for i in [0.0, 0.25, 0.35, 0.5]])
-fig, ax2, pltobj = heatmap(rand(-1:1, 20, 20);
-    colormap=cgrad(mycmap, 3, categorical=true, rev=true), # cgrad and Symbol, mycmap
-    axis=axis, figure=figure)
-cbar = Colorbar(fig[1, 2], pltobj, label="Categories")
-cbar.ticks = ([-0.66, 0, 0.66], ["negative", "neutral", "positive"])
-f1
-f2
-optobj = obj(y)
-text!("$optobj")
-strval = split(string(comp_lim), ".")
-# name = "aaafc_adjusted_multimat_compConts"*strval[1]*strval[2]*".png"
-save(name, f2)
-
-# end
+# # end

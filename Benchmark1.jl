@@ -6,13 +6,17 @@ using TopOpt.TopOptProblems.Visualization: visualize
 
 E = 1.0 # Young’s modulus
 v = 0.3 # Poisson’s ratio
-f = 2.0 # downward force
-rmin = 2.0 # filter radius
+f = 1.0 # downward force
+rmin = 4.0 # filter radius
 xmin = 0.0001 # minimum density
-problem_size = (60, 20)
+nx = 60
+ny = 20
+problem_size = (nx, ny)
 V = 0.5 # maximum volume fraction
 p = 4.0 # penalty
 x0 = fill(V, prod(problem_size)) # initial design
+
+
 
 problem = HalfMBB(Val{:Linear}, problem_size, (1.0, 1.0), E, v, f)
 
@@ -44,3 +48,25 @@ topology = cheqfilter(PseudoDensities(r.minimizer)).x
 fig = visualize(problem; solver.u,
     topology = topology, default_exagg_scale=0.0, scale_range=10.0)
 Makie.display(fig)
+
+## Pitipat edited after this line 
+ncells = nx*ny
+y = r.minimizer
+mapping = Array{Int64,2}(undef, ncells, 2)
+for i in 1:nx*ny
+    mapping[i, :] = [div(i, nx) + 1, mod(i, nx)]
+end
+
+f2 = Figure(resolution=(1000, 3000))
+ax3 = Axis(f2[1, 1])
+scatter!(ax3, mapping[:, 2], mapping[:, 1], color=y)
+
+
+ax4, hm1 = heatmap(f2[2, 1], mapping[:, 2], mapping[:, 1], y)
+ax5, hm2 = heatmap(f2[3, 1], mapping[:, 2], mapping[:, 1], y)
+
+cbar1 = Colorbar(f2[1, 2])
+cbar2 = Colorbar(f2[2, 2], hm1)
+cbar3 = Colorbar(f2[3, 2], hm2)
+f2
+
