@@ -21,3 +21,5 @@ Pkg.add("Surrogates")
 Pkg.add("Statistics")
 Pkg.add("Random")
 Pkg.add("Distributions")
+
+Pkg.add("ProgressLogging")

@@ -186,9 +186,8 @@ fmin = r.minimizer
 @show constr(r.minimizer)
 
 @show maximum(stress(cheqfilter(PseudoDensities(Amin))))
-topology = cheqfilter(PseudoDensities(Amin)).x
-
-fmin = topology
+topology_A = cheqfilter(PseudoDensities(Amin)).x
+topology_f = cheqfilter(PseudoDensities(fmin)).x
 
 
 
@@ -214,14 +213,26 @@ end
 # ax3 = Axis(f2[1, 1])
 # scatter!(ax3, mapping[:, 2], mapping[:, 1], color=y)
 
+
+
+f2 = Figure(resolution = (600 , 200)) 
+ax2, hm2 = heatmap(f2[1, 1], mapping[:, 1], mapping[:, 2], Amin)
+ax2.title = "Area (desity)"
+ax2.aspect = 3
+cbar2 = Colorbar(f2[1,2], hm2)
+f2
+
+
+
 f3 = Figure(resolution=(600, 200))
 ax3, hm1 = heatmap(f3[1, 1], mapping[:, 1], mapping[:, 2], fmin)
 ax3.title = "fc′"
 ax3.aspect = 3
-cbar1 = Colorbar(f3[1,2], hm3)
+cbar1 = Colorbar(f3[1,2], hm1)
 f3
 
-save("mu.ti_fc"*string(compliance_threshold)*".png", f3)
+save("muti_fc"*string(compliance_threshold)*".png", f3)
+
 
 
 

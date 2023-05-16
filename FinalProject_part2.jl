@@ -20,16 +20,19 @@
 # (min at 50)
 compliance_threshold = 500 # maximum compliance
 lc = [4000,3000, 2000, 1000, 900, 800, 700, 600, 500, 400, 300, 250,200, 100, 90, 80, 70, 60, 50, 49, 48, 47, 46]
+lc = [46]
 for i in lc
     compliance_threshold  =  i
+    println("Start loop number ", i, " with compliance_threshold = ", compliance_threshold)
 E = 1.0 # Young’s modulus
 v = 0.3 # Poisson’s ratio
 f = 2.0 # downward force
 rmin = 4.0 # filter radius
 xmin = 0.0001 # minimum density
 problem_size = (60, 20)
-x0 = vcat(fill(1.0, prod(problem_size)), fill(80.0, prod(problem_size))) # initial design
-println(size(x0))
+ncells = prod(problem_size)
+x0 = vcat(fill(1.0, ncells), fill(80.0, ncells)) # initial design
+# println(size(x0))
 p = 1.0 # penalty
 
 # Young's modulus interpolation for compliance
@@ -98,11 +101,11 @@ fmin_n = fmin ./ fmax
 @show maximum(stress(cheqfilter(PseudoDensities(Amin))))
 Amin = cheqfilter(PseudoDensities(Amin)).x
 fmin = cheqfilter(PseudoDensities(fmin)).x
-fig1 = visualize(problem; solver.u, topology=Amin, default_exagg_scale=0.0, scale_range=10.0)
-Makie.display(fig1)
+# fig1 = visualize(problem; solver.u, topology=Amin, default_exagg_scale=0.0, scale_range=10.0)
+# Makie.display(fig1)
 
-fig2 = visualize(problem; solver.u, topology=fmin_n, default_exagg_scale=0.0, scale_range=10.0)
-Makie.display(fig2)
+# fig2 = visualize(problem; solver.u, topology=fmin_n, default_exagg_scale=0.0, scale_range=10.0)
+# Makie.display(fig2)
 
 Am= fmin_n
 mapping = Array{Int64,2}(undef, ncells, 2)
@@ -144,4 +147,6 @@ save("fc"*string(compliance_threshold)*"fil"*".png", f3)
 
 end
 
+f2
+f3
 # # end

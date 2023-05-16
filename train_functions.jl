@@ -1,8 +1,11 @@
 using Flux
 
-function train_model!(selected_model, train_data, test_data ; epoch_lim = 10000, batch_size = 0)
-    model_loss_history = Float32[1]
-    test_loss_history = Float32[1]
+function train_model!(selected_model::Chain, train_data, test_data ; epoch_lim = 10000, ϵ = 0.0001)
+    model_loss_history = Vector{Float32}()
+    test_loss_history = Vector{Float32}()
+    push!(model_loss_history, 1.0)
+    push!(test_loss_history, 1.0)
+
     x_train = train_data[:, [1]]'
     y_train = train_data[:, [2]]'
     x_test = test_data[:, [1]]'
@@ -14,7 +17,7 @@ function train_model!(selected_model, train_data, test_data ; epoch_lim = 10000,
     epoch = 0 
     # if batchsize == 0
 
-    while epoch < epoch_lim && (model_loss_history[end] > 0.0001 || test_loss_history[end] > 0.0001)
+    while epoch < epoch_lim && (model_loss_history[end] > ϵ || model_loss_history[end] > ϵ )
         epoch += 1 
         dLdm = gradient(loss1, selected_model, x_train, y_train)[1]
         # state_tree, selected_model = Optimisers.update(state_tree, selected_model, dLdm)
@@ -24,7 +27,7 @@ function train_model!(selected_model, train_data, test_data ; epoch_lim = 10000,
         testing_loss  = loss1(selected_model, x_test , y_test)
         push!(model_loss_history, training_loss)
         push!(test_loss_history, testing_loss)
-        if epoch % 50 == 0
+        if epoch % 100 == 0
             println("Epoch: $epoch, Loss: $training_loss, Test Loss: $testing_loss")
         end
         

@@ -242,7 +242,7 @@ function plot_country(df::DataFrame, country::String, model::Chain; savefig::Boo
 		ax.xticks = 0:10:xmax
 		ax.yticks = 0:0.05:ymax
 	end
-	ax.xticks = 0:10:xmax
+
 	ax.xlabelsize = 30
 	ax.ylabelsize = 30
 	scatter!(ax, df[!, "strength [MPa]"], df[!, "gwp_per_kg [kgCO2e/kg]"], color=:blue, markersize=20)
@@ -261,9 +261,29 @@ end;
 
 function constructModels()
     N1 = Chain(Dense(1, 1)) #need 10000 epoch
+
     N2_1 = Chain(Dense(1, 10, sigmoid), Dense(10, 1)) #need less than 5000 epoch
     N2_2 = Chain(Dense(1, 10, relu), Dense(10, 1))
-    N3_1 = Chain(Dense(1, 10,), Dense(10, 10, sigmoid), Dense(10, 1))
-    N3_2 = Chain(Dense(1, 10,), Dense(10, 10, relu), Dense(10, 1))
-    return [N1, N2_1, N2_2, N3_1, N3_2]
+    N2_3 = Chain(Dense(1, 10, tanh), Dense(10, 1))
+
+    N3_1 = Chain(Dense(1, 10), Dense(10, 10, sigmoid), Dense(10, 1))
+    N3_2 = Chain(Dense(1, 10), Dense(10, 10, relu), Dense(10, 1))
+    N3_3 = Chain(Dense(1, 10), Dense(10, 10, tanh), Dense(10, 1))
+
+    models = [N1, N2_1, N2_2, N2_3, N3_1, N3_2, N3_3]
+    model_names = ["1", "2_sigmoid" , "2_relu", "2_tanh", "3_sigmoid", "3_relu", "3_tanh"]
+    return models, model_names
+end
+
+#normalize dataset
+function normalize_data(data, x_max, x_min, y_max, y_min)
+    data[:, 1] = (data[:, 1] .- x_min) ./ (x_max - x_min)
+    data[:, 2] = (data[:, 2] .- y_min) ./ (y_max - y_min)
+    return data
+end
+
+function un_normalize_data(data, x_max, x_min, y_max, y_min)
+    data[:, 1] = data[:, 1] .* (x_max - x_min) .+ x_min
+    data[:, 2] = data[:, 2] .* (y_max - y_min) .+ y_min
+    return data
 end

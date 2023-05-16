@@ -27,14 +27,6 @@ include("train_functions.jl")
 Makie.inline!(true) # so Makie plots are in Jupyter notebook
 
 
-
-
-#### Construct models
-models = constructModels()
-selected_model = models[4]
-#### Construct loss functions
-loss1(model, x, y) = Flux.mse(model(x), y)
-
 """
 ## Load data
 """
@@ -43,15 +35,16 @@ ndata = size(df)[1]
 println("There are $ndata data points in the dataset.")
 countries = unique(df[!, "country"])
 countries = vcat(countries, "ALL")
-for i in countries 
-    if i == "ALL"
-        df_i = df
-        f = plot_country(df_i, String(i))
-    else
-	    df_i = df[df[!, "country"].==i, :]
-	    f = plot_country(df_i, String(i))
-    end
-end
+
+# for i in countries 
+#     if i == "ALL"
+#         df_i = df
+#         f = plot_country(df_i, String(i))
+#     else
+# 	    df_i = df[df[!, "country"].==i, :]
+# 	    f = plot_country(df_i, String(i))
+#     end
+# end
 
 
 
@@ -79,8 +72,6 @@ for i in eachindex(pes_pts)
 end
 
 
-
-
 #plot qmodel to check
 begin
     x_opt = opt[:, 1]
@@ -91,8 +82,8 @@ begin
     f_opt = Figure(resolution = (800, 600))
     ax_opt = Axis(f_opt[1, 1])
     scatter!(ax_opt, x_total, y_total, color=:gray) #plot all data
-    scatter!(ax_opt, x_opt , y_opt, color=:blue) # plot lower bound
-    scatter!(ax_opt, x_pes, y_pes, color=:red, marker = :square) # plot upper bound
+    scatter!(ax_opt, x_opt , y_opt, color=:blue,  markersize = 15) # plot lower bound
+    scatter!(ax_opt, x_pes, y_pes, color=:red, marker = :square, markersize = 10) # plot upper bound
     f_opt
 end
 
@@ -108,19 +99,64 @@ end
 # test_data_n = normalize_data(test_data, x_max,x_min, y_max,y_min)
 
 
-qmodel = Chain(Dense(1, 50, sigmoid),Dense(50,50,sigmoid), Dense(50, 1))
-selected_model, loss_history, test_history = train_model!(qmodel, opt, opt)
+qmodel_opt_sig = Chain(Dense(1, 50, sigmoid),Dense(50,50,sigmoid), Dense(50, 1))
+qmodel_opt_relu = Chain(Dense(1, 50, relu),Dense(50,50,relu), Dense(50, 1))
+qmodel_opt_tanh = Chain(Dense(1, 50, tanh),Dense(50,50,tanh), Dense(50, 1))
 
-predict = x -> selected_model([x])[1]
+qmodel_opt_sig, loss_history, test_history = train_model!(qmodel_opt_sig, opt, opt, ϵ = 1e-9)
+qmodel_opt_relu, loss_history, test_history = train_model!(qmodel_opt_relu, opt, opt, ϵ = 1e-9)
+qmodel_opt_tanh, loss_history, test_history = train_model!(qmodel_opt_tanh, opt, opt, ϵ = 1e-9)
 
-y_pred =  [ i[1] for i in predict.(x_opt)]
+predict_opt_sig = x -> qmodel_opt_sig([x])[1]
+predict_opt_relu = x -> qmodel_opt_relu([x])[1]
+predict_opt_tanh = x -> qmodel_opt_tanh([x])[1]
 
-lines!(ax_opt, x_opt, y_pred, color=:red)
+y_pred_opt_sig =  [ i[1] for i in predict_opt_sig.(x_opt)]
+y_pred_opt_relu =  [ i[1] for i in predict_opt_relu.(x_opt)]
+y_pred_opt_tanh =  [ i[1] for i in predict_opt_tanh.(x_opt)]
+
+
+lines!(ax_opt, x_opt, y_pred_opt_sig, color=:blue, label = "sigmoid")
+lines!(ax_opt, x_opt, y_pred_opt_relu, color=:green, label = "relu")
+lines!(ax_opt, x_opt, y_pred_opt_tanh, color=:orange, label = "tanh")
 f_opt
 
+#do the same with pes data
 
+qmodel_pes_sig = Chain(Dense(1, 50, sigmoid),Dense(50,50,sigmoid), Dense(50, 1))
+qmodel_pes_relu = Chain(Dense(1, 50, relu),Dense(50,50,relu), Dense(50, 1))
+qmodel_pes_tanh = Chain(Dense(1, 50, tanh),Dense(50,50,tanh), Dense(50, 1))
+
+qmodel_pes_sig, loss_history, test_history = train_model!(qmodel_pes_sig, pes, pes, ϵ = 1e-9)
+qmodel_pes_relu, loss_history, test_history = train_model!(qmodel_pes_relu, pes, pes, ϵ = 1e-9)
+qmodel_pes_tanh, loss_history, test_history = train_model!(qmodel_pes_tanh, pes, pes, ϵ = 1e-9)
+
+predict_pes_sig = x -> qmodel_pes_sig([x])[1]
+predict_pes_relu = x -> qmodel_pes_relu([x])[1]
+predict_pes_tanh = x -> qmodel_pes_tanh([x])[1]
+
+y_pred_pes_sig =  [ i[1] for i in predict_pes_sig.(x_pes)]
+y_pred_pes_relu =  [ i[1] for i in predict_pes_relu.(x_pes)]
+y_pred_pes_tanh =  [ i[1] for i in predict_pes_tanh.(x_pes)]
+
+lines!(ax_opt, x_pes, y_pred_pes_sig, color=:blue , linestyle = :dash, label = "sigmoid")
+lines!(ax_opt, x_pes, y_pred_pes_relu, color=:green, linestyle = :dash, label = "relu")
+lines!(ax_opt, x_pes, y_pred_pes_tanh, color=:orange, linestyle = :dash, label = "tanh")
+
+
+legend = ["data", "opt sig", "opt relu", "opt tanh", "pes sig", "pes relu", "pes tanh"]
+f_opt[1, 2] = Legend(f_opt, ax_opt, "Activation function", framevisible = false)
+f_opt
 #=================================================================================#
+#let's get data that's more than 10% (val) of the opt and pes function 
 
+range_fc′ = 10:0.1:100
+distance = 10 
+#at add each point that's close to the opt and pes function than the specified distance.
+#if the point is already in the list, don't add it again
+
+#will do Thursday night.
+#=================================================================================#
 
 #### Separate the data into training and testing
 data = hcat(x_total, y_total); # data is a 2 x n matrix
@@ -133,76 +169,154 @@ println("#"^50)
 
 #construct models
 
-#normalize dataset
-function normalize_data(data, x_max, x_min, y_max, y_min)
-    data[:, 1] = (data[:, 1] .- x_min) ./ (x_max - x_min)
-    data[:, 2] = (data[:, 2] .- y_min) ./ (y_max - y_min)
-    return data
+# x_max = maximum(data[:, 1])
+# x_min = minimum(data[:, 1])
+# y_max = maximum(data[:, 2])
+# y_min = minimum(data[:, 2])
+
+# @assert un_normalize_data(normalize_data(train_data, x_max,x_min, y_max,y_min),x_max,x_min, y_max,y_min ) == train_data
+
+# train_data_n = normalize_data(train_data, x_max,x_min, y_max,y_min)
+# test_data_n = normalize_data(test_data, x_max,x_min, y_max,y_min)
+
+# #plot data Distributions
+# f_dis = Figure(resolution=(800, 600)) 
+# ax_dis = Axis(f_dis[1, 1], xlabel="x", ylabel="y", title="Data Distribution")
+# hist(x_total, bins=20, alpha=0.5, label="x", color=:red)
+# hist(test_data_n[:, 1], bins=20, alpha=0.5, label="x_train", color=:blue)
+
+
+
+#### Construct models
+Random.seed!(12345)
+
+@show (models, m_names) = constructModels()
+
+models[1][1].weight
+
+trained_model = Vector{Chain}(undef, length(models))
+
+save_loss = Vector{Vector{Float32}}(undef, length(models))
+save_test_loss = Vector{Vector{Float32}}(undef, length(models))
+
+for i in eachindex(models)
+    mn = i
+    selected_model = models[mn]
+    selected_model_name = m_names[mn]
+    println("Selected model: $selected_model_name")
+
+    selected_model, model_loss_history, test_loss_history = train_model!(selected_model, train_data, test_data, ϵ = 1e-6)
+
+    save_model[i] = deepcopy(selected_model)
+    save_loss[i]  = deepcopy(model_loss_history)
+    save_test_loss[i] = deepcopy(test_loss_history)
+    println("DONE TRAINING for $selected_model_name")
 end
 
-function un_normalize_data(data, x_max, x_min, y_max, y_min)
-    data[:, 1] = data[:, 1] .* (x_max - x_min) .+ x_min
-    data[:, 2] = data[:, 2] .* (y_max - y_min) .+ y_min
-    return data
+
+#Plotting
+
+m_names = [ string(i) for i in m_names]
+
+save_func_e = Vector{Function}(undef, length(models))
+save_func_g = Vector{Function}(undef, length(models))
+
+f_func = Figure(resolution=(1200, 800))
+ax_func = Axis(f_func[1, 1], xlabel="x", ylabel="y", title="Prediction")
+ax_func.xlabelsize = 30
+ax_func.ylabelsize = 30
+ax_func.titlesize  = 40
+f_func
+
+xmax = maximum(data[:,1])
+ymax = maximum(data[:,2])
+if size(data)[1] < 10
+    ax_func.xticks = 0:1:xmax
+    ax_func.yticks = 0:0.01:ymax
+else
+    ax_func.xticks = 0:10:xmax
+    ax_func.yticks = 0:0.05:ymax
 end
 
-
-x_max = maximum(data[:, 1])
-x_min = minimum(data[:, 1])
-y_max = maximum(data[:, 2])
-y_min = minimum(data[:, 2])
-
-@assert un_normalize_data(normalize_data(train_data, x_max,x_min, y_max,y_min),x_max,x_min, y_max,y_min ) == train_data
+xval = collect(10:0.1:xmax)
+xval_ = [ [x] for x in xval]
 
 
-train_data_n = normalize_data(train_data, x_max,x_min, y_max,y_min)
-test_data_n = normalize_data(test_data, x_max,x_min, y_max,y_min)
-#plot data Distributions
-f_dis = Figure(resolution=(800, 600)) 
-ax_dis = Axis(f_dis[1, 1], xlabel="x", ylabel="y", title="Data Distribution")
-hist(x_total, bins=20, alpha=0.5, label="x", color=:red)
-hist(test_data_n[:, 1], bins=20, alpha=0.5, label="x_train", color=:blue)
-
-selected_model = models[4]
-selected_model, model_loss_history, test_loss_history = train_model!(selected_model, train_data, test_data)
-
-# design variables are fc′
-# assign model into function
-f2e = x -> sqrt.(x) #normalized modulus
-f2g = x -> un_normalize_data(selected_model([x]),x_max,x_min, y_max,y_min)#will have to broadcast later.
-f2g = x -> selected_model([x])[1] #will have to broadcast later.
-
-begin
-#plot loss and test 
 f_loss = Figure(resolution=(1200, 800))
-ax1 = Axis(f_loss[1, 1], xlabel="Epoch", ylabel="Loss", yscale=log10, title = "Loss vs Epoch")
-lin = lines!(ax1, model_loss_history, markersize=7.5, color=:red)
-sca = scatter!(ax1, test_loss_history, markersize=7.5)
-ax1.subtitle = "Loss is $(valid_loss)"
-Legend(f_loss[1, 2],
-    [sca, lin],
-    ["testing loss_history", "training loss_history"])
-ax1.xlabelsize = 30
-ax1.ylabelsize = 30
-ax1.titlesize = 40
-ax1.yticklabelsize = 23
+ax_loss = Axis(f_loss[1, 1], xlabel="Epoch", ylabel="Loss", yscale=log10, xscale = log10, title = "Loss vs Epoch")
+ax_loss.xlabelsize = 30
+ax_loss.ylabelsize = 30
+ax_loss.titlesize  = 40
+#loop and plot all the models
+for i in eachindex(save_model)
+    model = save_model[i]
+    name = m_names[i]
+
+    # design variables are fc′
+    # assign model into function
+    f2e = x -> sqrt.(x) #normalized modulus
+    f2g = x -> model([x])[1] #will have to broadcast later.
+    save_func_e[i] = deepcopy(f2e)
+    save_func_g[i] = deepcopy(f2g)
+    
+
+    #get line type
+    # line_type = :solid
+    # println(string(name[1]))
+    w = 3
+    if string(name[1]) == "1"
+        col = :black
+        line_type = :solid
+        continue
+    elseif string(name[1]) == "2" 
+        col = :red
+        if string(name[end]) == "d"
+            line_type = :solid
+        elseif string(name[end]) == "u"
+            line_type = :dot
+        elseif string(name[end]) == "h"
+            line_type = :dash
+            col = :green
+        end
+
+    elseif string(name[1]) == "3"
+        col = :blue
+        if string(name[end]) == "d"
+            line_type = :solid
+        elseif string(name[end]) == "u"
+            line_type = :dot
+        elseif string(name[end]) == "h"
+            line_type = :dash
+        end
+    end
+
+	lines!(ax_func, xval, [x[1] for x in model.(xval_)], color=col, linestyle= line_type, linewidth= w, label = name)
+    # lines!(ax_func, range_fc′, f2g(range_fc'), markersize=7.5, color=col, linestyle = line_type, label = name)
+    lines!(ax_loss, save_loss[i], markersize=7.5, color=col, linestyle = line_type, label = name, linewidth = 5)
+    lines!(ax_loss, save_test_loss[i], markersize=7.5, color=col, linestyle = line_type, label = "test_"*name, linewidth = 2)
+
+end
+
+
+scatter!(ax_func , df_c[!, "strength [MPa]"], df_c[!, "gwp_per_kg [kgCO2e/kg]"], markersize=20, color=:green, label = "Original Data")
+
+f_func
 f_loss
-end
 
-begin
-f_pva = Figure(resolution=(1200, 800))
-ax_pva = Axis(f_pva[1, 1], xlabel="Predicted", ylabel="Acctual ")
-ax_pva.title = "Actual vs Predicted GWP [kgCO2e/kg]"
+f_func[1 ,2] = Legend(f_func, ax_func, "Model", framevisible = false)
+f_loss[1, 2] = Legend(f_loss, ax_loss, "Model", framevisible = false)
+f_loss
 
-scatter!(ax_pva, test_data[:, 2], [x[1] for x in f2g.(test_data[:, 1])], color=:red, markersize=10)
-ln = lines!(ax_pva, test_data[:, 2], test_data[:, 2])
-
-Legend(f_pva[1, 2],
-    [ln],
-    ["y=x"])
-f_pva
-end
+f_func
 
 
-#plot line compare with the actual data
+save("f_func.png", f_func)
+save("f_loss.png", f_loss)
+
+
+
 f_with_sur = plot_country(df[df[!, "country"].==c, :], c, selected_model)
+
+
+#pick sigmoid with 2 layers
+#this should give te surrogate model used for TopOpt.2
