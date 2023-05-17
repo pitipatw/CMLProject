@@ -1,6 +1,6 @@
 using Flux
 
-function train_model!(selected_model::Chain, train_data, test_data ; epoch_lim = 10000, ϵ = 0.0001)
+function train_model!(selected_model::Chain, train_data, test_data ; epoch_lim = 100000, ϵ = 0.0001)
     model_loss_history = Vector{Float32}()
     test_loss_history = Vector{Float32}()
     push!(model_loss_history, 1.0)

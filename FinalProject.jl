@@ -99,13 +99,13 @@ end
 # test_data_n = normalize_data(test_data, x_max,x_min, y_max,y_min)
 
 
-qmodel_opt_sig = Chain(Dense(1, 50, sigmoid),Dense(50,50,sigmoid), Dense(50, 1))
+qmodel_opt_sig =  Chain(Dense(1, 50, sigmoid),Dense(50,50,sigmoid), Dense(50, 1))
 qmodel_opt_relu = Chain(Dense(1, 50, relu),Dense(50,50,relu), Dense(50, 1))
 qmodel_opt_tanh = Chain(Dense(1, 50, tanh),Dense(50,50,tanh), Dense(50, 1))
 
-qmodel_opt_sig, loss_history, test_history = train_model!(qmodel_opt_sig, opt, opt, ϵ = 1e-9)
-qmodel_opt_relu, loss_history, test_history = train_model!(qmodel_opt_relu, opt, opt, ϵ = 1e-9)
-qmodel_opt_tanh, loss_history, test_history = train_model!(qmodel_opt_tanh, opt, opt, ϵ = 1e-9)
+qmodel_opt_sig, loss_history, test_history = train_model!(qmodel_opt_sig, opt, opt, ϵ = 1e-6)
+qmodel_opt_relu, loss_history, test_history = train_model!(qmodel_opt_relu, opt, opt, ϵ = 1e-6)
+qmodel_opt_tanh, loss_history, test_history = train_model!(qmodel_opt_tanh, opt, opt, ϵ = 1e-6)
 
 predict_opt_sig = x -> qmodel_opt_sig([x])[1]
 predict_opt_relu = x -> qmodel_opt_relu([x])[1]
@@ -127,9 +127,9 @@ qmodel_pes_sig = Chain(Dense(1, 50, sigmoid),Dense(50,50,sigmoid), Dense(50, 1))
 qmodel_pes_relu = Chain(Dense(1, 50, relu),Dense(50,50,relu), Dense(50, 1))
 qmodel_pes_tanh = Chain(Dense(1, 50, tanh),Dense(50,50,tanh), Dense(50, 1))
 
-qmodel_pes_sig, loss_history, test_history = train_model!(qmodel_pes_sig, pes, pes, ϵ = 1e-9)
-qmodel_pes_relu, loss_history, test_history = train_model!(qmodel_pes_relu, pes, pes, ϵ = 1e-9)
-qmodel_pes_tanh, loss_history, test_history = train_model!(qmodel_pes_tanh, pes, pes, ϵ = 1e-9)
+qmodel_pes_sig, loss_history, test_history = train_model!(qmodel_pes_sig, pes, pes, ϵ = 1e-6)
+qmodel_pes_relu, loss_history, test_history = train_model!(qmodel_pes_relu, pes, pes, ϵ = 1e-6)
+qmodel_pes_tanh, loss_history, test_history = train_model!(qmodel_pes_tanh, pes, pes, ϵ = 1e-6)
 
 predict_pes_sig = x -> qmodel_pes_sig([x])[1]
 predict_pes_relu = x -> qmodel_pes_relu([x])[1]
@@ -194,7 +194,7 @@ Random.seed!(12345)
 
 models[1][1].weight
 
-trained_model = Vector{Chain}(undef, length(models))
+save_model = Vector{Chain}(undef, length(models))
 
 save_loss = Vector{Vector{Float32}}(undef, length(models))
 save_test_loss = Vector{Vector{Float32}}(undef, length(models))
@@ -267,7 +267,6 @@ for i in eachindex(save_model)
     if string(name[1]) == "1"
         col = :black
         line_type = :solid
-        continue
     elseif string(name[1]) == "2" 
         col = :red
         if string(name[end]) == "d"
@@ -276,7 +275,6 @@ for i in eachindex(save_model)
             line_type = :dot
         elseif string(name[end]) == "h"
             line_type = :dash
-            col = :green
         end
 
     elseif string(name[1]) == "3"
@@ -293,12 +291,12 @@ for i in eachindex(save_model)
 	lines!(ax_func, xval, [x[1] for x in model.(xval_)], color=col, linestyle= line_type, linewidth= w, label = name)
     # lines!(ax_func, range_fc′, f2g(range_fc'), markersize=7.5, color=col, linestyle = line_type, label = name)
     lines!(ax_loss, save_loss[i], markersize=7.5, color=col, linestyle = line_type, label = name, linewidth = 5)
-    lines!(ax_loss, save_test_loss[i], markersize=7.5, color=col, linestyle = line_type, label = "test_"*name, linewidth = 2)
+    # lines!(ax_loss, save_test_loss[i], markersize=7.5, color=col, linestyle = line_type, label = "test_"*name, linewidth = 2)
 
 end
 
 
-scatter!(ax_func , df_c[!, "strength [MPa]"], df_c[!, "gwp_per_kg [kgCO2e/kg]"], markersize=20, color=:green, label = "Original Data")
+scatter!(ax_func , data[:,1], data[:,2], markersize=20, color=:green, label = "Original Data")
 
 f_func
 f_loss
@@ -315,7 +313,7 @@ save("f_loss.png", f_loss)
 
 
 
-f_with_sur = plot_country(df[df[!, "country"].==c, :], c, selected_model)
+# f_with_sur = plot_country(df[df[!, "country"].==c, :], c, selected_model)
 
 
 #pick sigmoid with 2 layers
