@@ -14,14 +14,15 @@
 #get benchmark problem
 # include("Benchmark1.jl")
 
-
-
-
+f2 = Figure(resolution=(600, 200))
+f3 = Figure(resolution=(600, 200))
 # (min at 50)
-compliance_threshold = 500 # maximum compliance
-lc = [4000,3000, 2000, 1000, 900, 800, 700, 600, 500, 400, 300, 250,200, 100, 90, 80, 70, 60, 50, 49, 48, 47, 46]
-lc = [46]
+# compliance_threshold = 500 # maximum compliance
+# lc = [4000,3000, 2000, 1000, 900, 800, 700, 600, 500, 400, 300, 250,200, 100, 90, 80, 70, 60, 50, 49, 48, 47, 46]
+lc = [50]
 for i in lc
+    f2e = save_func_e[2]
+    f2g = save_func_g[2]
     compliance_threshold  =  i
     println("Start loop number ", i, " with compliance_threshold = ", compliance_threshold)
 E = 1.0 # Young’s modulus
@@ -89,8 +90,6 @@ TopOpt.setpenalty!(solver, p)
 )
 
 
-
-
 Amin = r.minimizer[1:Int32(length(r.minimizer) / 2)]
 fmin = r.minimizer[Int32(length(r.minimizer) / 2)+1:end]
 fmax = maximum(fmin)
@@ -122,11 +121,10 @@ end
 # ax3 = Axis(f2[1, 1])
 # scatter!(ax3, mapping[:, 2], mapping[:, 1], color=y)
 
-f2 = Figure(resolution=(600, 200))
 
 ax4, hm1 = heatmap(f2[1, 1], mapping[:, 1], mapping[:, 2], Amin)
 
-f3 = Figure(resolution=(600, 200))
+
 
 ax5, hm2 = heatmap(f3[1, 1], mapping[:, 1], mapping[:, 2], fmin)
 # ax6, hm3 = heatmap(f2[3, 1], mapping[:, 1], mapping[:, 2], fmin.*Amin)
@@ -142,8 +140,8 @@ cbar2 = Colorbar(f3[1,2], hm2)
 # cbar3 = Colorbar(f2[3,2], hm3)
 f2
 f3
-save("area"*string(compliance_threshold)*"fil"*".png", f2)
-save("fc"*string(compliance_threshold)*"fil"*".png", f3)
+save("fil_area"*string(compliance_threshold)*".png", f2)
+save("fil_fc"*string(compliance_threshold)*".png", f3)
 
 end
 

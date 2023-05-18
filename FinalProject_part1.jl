@@ -195,20 +195,6 @@ Random.seed!(1234567)
 
 models[1][1].weight
 
-function train_all!(models, train_data, test_data; ϵ = 1e-6)
-    model_loss_history = Vector{Vector{Float32}}(undef, length(models))
-    test_loss_history = Vector{Vector{Float32}}(undef, length(models))
-    for i in eachindex(models)
-        selected_model = models[i]
-        selected_model_name = m_names[i]
-        println("Selected model: $selected_model_name")
-
-        selected_model, model_loss_history[i], test_loss_history[i] = train_model!(selected_model, train_data, test_data, ϵ = ϵ)
-
-        println("DONE TRAINING for $selected_model_name")
-    end
-    return models, model_loss_history, test_loss_history
-end
 
 save_model, save_loss,save_test_loss = train_all!(models, train_data, test_data, ϵ = 1e-6)
 
@@ -258,69 +244,21 @@ end
 xval = collect(xmin:0.1:xmax)
 xval_ = [ [x] for x in xval]
 
-
-f_loss = Figure(resolution=(1200, 800))
-ax_loss = Axis(f_loss[1, 1], xlabel="Epoch", ylabel="Loss", yscale=log10, xscale = log10, title = "Loss vs Epoch")
-ax_loss.xlabelsize = 30
-ax_loss.ylabelsize = 30
-ax_loss.titlesize  = 40
-#loop and plot all the models
-for i in eachindex(save_model)
-    model = save_model[i]
-    name = m_names[i]
-
-    # design variables are fc′
-    # assign model into function
-    f2e = x -> sqrt.(x) #normalized modulus
-    f2g = x -> model([x])[1] #will have to broadcast later.
-    save_func_e[i] = deepcopy(f2e)
-    save_func_g[i] = deepcopy(f2g)
-    
-
-    #get line type
-    # line_type = :solid
-    # println(string(name[1]))
-    w = 3
-    if string(name[1]) == "1"
-        col = :black
-        line_type = :solid
-    elseif string(name[1]) == "2" 
-        col = :red
-        if string(name[end]) == "d"
-            line_type = :solid
-        elseif string(name[end]) == "u"
-            line_type = :dot
-        elseif string(name[end]) == "h"
-            line_type = :dash
-        end
-
-    elseif string(name[1]) == "3"
-        col = :blue
-        if string(name[end]) == "d"
-            line_type = :solid
-        elseif string(name[end]) == "u"
-            line_type = :dot
-        elseif string(name[end]) == "h"
-            line_type = :dash
-        end
-    end
-
-	lines!(ax_func, xval, [x[1] for x in model.(xval_)], color=col, linestyle= line_type, linewidth= w, label = name)
-    # lines!(ax_func, range_fc′, f2g(range_fc'), markersize=7.5, color=col, linestyle = line_type, label = name)
-    lines!(ax_loss, save_loss[i], markersize=7.5, color=col, linestyle = line_type, label = name, linewidth = 5)
-    # lines!(ax_loss, save_test_loss[i], markersize=7.5, color=col, linestyle = line_type, label = "test_"*name, linewidth = 2)
-
-end
-
-
 scatter!(ax_func , data[:,1], data[:,2], markersize=20, color=:green, label = "Original Data")
 
 f_func
+
+
+
+f_loss = plot_loss(save_model, save_loss, m_names)
 f_loss
 
+
+#plot the surrogate model
+
+
 f_func[1 ,2] = Legend(f_func, ax_func, "Model", framevisible = false)
-f_loss[1, 2] = Legend(f_loss, ax_loss, "Model", framevisible = false)
-f_loss
+
 
 f_func
 

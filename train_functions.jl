@@ -40,3 +40,19 @@ function train_model!(selected_model::Chain, train_data, test_data ; epoch_lim =
 
     return selected_model, model_loss_history, test_loss_history
 end
+
+
+function train_all!(models, train_data, test_data; ϵ = 1e-6)
+    model_loss_history = Vector{Vector{Float32}}(undef, length(models))
+    test_loss_history = Vector{Vector{Float32}}(undef, length(models))
+    for i in eachindex(models)
+        selected_model = models[i]
+        selected_model_name = m_names[i]
+        println("Selected model: $selected_model_name")
+
+        selected_model, model_loss_history[i], test_loss_history[i] = train_model!(selected_model, train_data, test_data, ϵ = ϵ)
+
+        println("DONE TRAINING for $selected_model_name")
+    end
+    return models, model_loss_history, test_loss_history
+end

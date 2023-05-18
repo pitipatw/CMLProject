@@ -2,7 +2,7 @@
 # y = rand(1000);
 # x = collect(copy(x_train))[:]
 # y = collect(copy(y_train))[:]
-function find_upperbound(x::Vector{Float64}, y::Vector{Float64})
+function find_upperbound(x::Vector{Float32}, y::Vector{Float32})
     #get the bottom left most point
     x_min, x_min_i = findmin(x)
     y_min = y[x_min_i]
@@ -58,7 +58,7 @@ function find_upperbound(x::Vector{Float64}, y::Vector{Float64})
     return path
 end
 
-function find_lowerbound(x::Vector{Float64}, y::Vector{Float64})
+function find_lowerbound(x::Vector{Float32}, y::Vector{Float32})
     #get the bottom left most point
     x_min, x_min_i = findmin(x)
     y_min = y[x_min_i]
