@@ -14,6 +14,8 @@ using Random
 using Distributions
 #style
 using ProgressLogging
+
+
 """
 inputs 
 country name (string, abbreviation)
@@ -36,33 +38,30 @@ println("There are $ndata data points in the dataset.")
 countries = unique(df[!, "country"])
 countries = vcat(countries, "ALL")
 
-# for i in countries 
-#     if i == "ALL"
-#         df_i = df
-#         f = plot_country(df_i, String(i))
-#     else
-# 	    df_i = df[df[!, "country"].==i, :]
-# 	    f = plot_country(df_i, String(i))
-#     end
-# end
-
-
+f_all = Figure(resolution = (1200, 800))
+ax_all = Axis(f_all[1, 1], xlabel="Strength [MPa]", ylabel="GWP [kgCO2e/kg]")
+ax_all.title = "Strength vs GWP"
+ax_all.titlesize  = 40
+ax_all.ylabelsize = 30
+ax_all.xlabelsize = 30
+scatter!(ax_all, df[!, "strength [MPa]"], df[!, "gwp_per_kg [kgCO2e/kg]"], color=:blue, markersize=20)
+f_all
+save("f_all.png", f_all)
 
 """
 #### Select data for training/testing
 """
 #select data with MX as country
-c = "IN"
-x_total = collect(df[df[!, "country"].==c, :][!, "strength [MPa]"]);
-y_total = collect(df[df[!, "country"].==c, :][!, "gwp_per_kg [kgCO2e/kg]"]);
-
+c = "MX"
+x_total = Float32.(collect(df[df[!, "country"].==c, :][!, "strength [MPa]"]))
+y_total = Float32.(collect(df[df[!, "country"].==c, :][!, "gwp_per_kg [kgCO2e/kg]"]))
 #find the upper and lower bound
 opt_pts = find_lowerbound(x_total, y_total)
 pes_pts = find_upperbound(x_total, y_total)
 
 #convert to matrix
-opt = Matrix{Float64}(undef, length(opt_pts), 2)
-pes = Matrix{Float64}(undef, length(pes_pts), 2)
+opt = Matrix{Float32}(undef, length(opt_pts), 2)
+pes = Matrix{Float32}(undef, length(pes_pts), 2)
 for i in eachindex(opt_pts)
     opt[i, :] = [opt_pts[i][1], opt_pts[i][2]]
 end
@@ -111,14 +110,15 @@ predict_opt_sig = x -> qmodel_opt_sig([x])[1]
 predict_opt_relu = x -> qmodel_opt_relu([x])[1]
 predict_opt_tanh = x -> qmodel_opt_tanh([x])[1]
 
-y_pred_opt_sig =  [ i[1] for i in predict_opt_sig.(x_opt)]
-y_pred_opt_relu =  [ i[1] for i in predict_opt_relu.(x_opt)]
-y_pred_opt_tanh =  [ i[1] for i in predict_opt_tanh.(x_opt)]
+xval = range(minimum(x_total), stop=maximum(x_total), length=100)
+y_pred_opt_sig =  [ i[1] for i in predict_opt_sig.(xval)]
+y_pred_opt_relu =  [ i[1] for i in predict_opt_relu.(xval)]
+y_pred_opt_tanh =  [ i[1] for i in predict_opt_tanh.(xval)]
 
 
-lines!(ax_opt, x_opt, y_pred_opt_sig, color=:blue, label = "sigmoid")
-lines!(ax_opt, x_opt, y_pred_opt_relu, color=:green, label = "relu")
-lines!(ax_opt, x_opt, y_pred_opt_tanh, color=:orange, label = "tanh")
+lines!(ax_opt, xval, y_pred_opt_sig, color=:blue, label = "sigmoid")
+lines!(ax_opt, xval, y_pred_opt_relu, color=:green, label = "relu")
+lines!(ax_opt, xval, y_pred_opt_tanh, color=:orange, label = "tanh")
 f_opt
 
 #do the same with pes data
@@ -135,13 +135,13 @@ predict_pes_sig = x -> qmodel_pes_sig([x])[1]
 predict_pes_relu = x -> qmodel_pes_relu([x])[1]
 predict_pes_tanh = x -> qmodel_pes_tanh([x])[1]
 
-y_pred_pes_sig =  [ i[1] for i in predict_pes_sig.(x_pes)]
-y_pred_pes_relu =  [ i[1] for i in predict_pes_relu.(x_pes)]
-y_pred_pes_tanh =  [ i[1] for i in predict_pes_tanh.(x_pes)]
+y_pred_pes_sig =  [ i[1] for i in predict_pes_sig.(xval)]
+y_pred_pes_relu =  [ i[1] for i in predict_pes_relu.(xval)]
+y_pred_pes_tanh =  [ i[1] for i in predict_pes_tanh.(xval)]
 
-lines!(ax_opt, x_pes, y_pred_pes_sig, color=:blue , linestyle = :dash, label = "sigmoid")
-lines!(ax_opt, x_pes, y_pred_pes_relu, color=:green, linestyle = :dash, label = "relu")
-lines!(ax_opt, x_pes, y_pred_pes_tanh, color=:orange, linestyle = :dash, label = "tanh")
+lines!(ax_opt, xval, y_pred_pes_sig, color=:blue , linestyle = :dash, label = "sigmoid")
+lines!(ax_opt, xval, y_pred_pes_relu, color=:green, linestyle = :dash, label = "relu")
+lines!(ax_opt, xval, y_pred_pes_tanh, color=:orange, linestyle = :dash, label = "tanh")
 
 
 legend = ["data", "opt sig", "opt relu", "opt tanh", "pes sig", "pes relu", "pes tanh"]
@@ -188,30 +188,44 @@ println("#"^50)
 
 
 #### Construct models
-Random.seed!(12345)
+Random.seed!(12346)
+Random.seed!(1234567)
 
 @show (models, m_names) = constructModels()
 
 models[1][1].weight
 
-save_model = Vector{Chain}(undef, length(models))
+function train_all!(models, train_data, test_data; ϵ = 1e-6)
+    model_loss_history = Vector{Vector{Float32}}(undef, length(models))
+    test_loss_history = Vector{Vector{Float32}}(undef, length(models))
+    for i in eachindex(models)
+        selected_model = models[i]
+        selected_model_name = m_names[i]
+        println("Selected model: $selected_model_name")
 
-save_loss = Vector{Vector{Float32}}(undef, length(models))
-save_test_loss = Vector{Vector{Float32}}(undef, length(models))
+        selected_model, model_loss_history[i], test_loss_history[i] = train_model!(selected_model, train_data, test_data, ϵ = ϵ)
 
-for i in eachindex(models)
-    mn = i
-    selected_model = models[mn]
-    selected_model_name = m_names[mn]
-    println("Selected model: $selected_model_name")
-
-    selected_model, model_loss_history, test_loss_history = train_model!(selected_model, train_data, test_data, ϵ = 1e-6)
-
-    save_model[i] = deepcopy(selected_model)
-    save_loss[i]  = deepcopy(model_loss_history)
-    save_test_loss[i] = deepcopy(test_loss_history)
-    println("DONE TRAINING for $selected_model_name")
+        println("DONE TRAINING for $selected_model_name")
+    end
+    return models, model_loss_history, test_loss_history
 end
+
+save_model, save_loss,save_test_loss = train_all!(models, train_data, test_data, ϵ = 1e-6)
+
+
+# for i in eachindex(models)
+#     mn = i
+#     selected_model = models[mn]
+#     selected_model_name = m_names[mn]
+#     println("Selected model: $selected_model_name")
+
+#     selected_model, model_loss_history, test_loss_history = train_model!(selected_model, train_data, test_data, ϵ = 1e-6)
+
+#     save_model[i] = deepcopy(selected_model)
+#     save_loss[i]  = deepcopy(model_loss_history)
+#     save_test_loss[i] = deepcopy(test_loss_history)
+#     println("DONE TRAINING for $selected_model_name")
+# end
 
 
 #Plotting
@@ -221,15 +235,18 @@ m_names = [ string(i) for i in m_names]
 save_func_e = Vector{Function}(undef, length(models))
 save_func_g = Vector{Function}(undef, length(models))
 
+
 f_func = Figure(resolution=(1200, 800))
-ax_func = Axis(f_func[1, 1], xlabel="x", ylabel="y", title="Prediction")
+ax_func = Axis(f_func[1, 1], xlabel="Concrete strength [MPa]", ylabel="GWP [kgCO2e/kg]", title="Prediction")
 ax_func.xlabelsize = 30
 ax_func.ylabelsize = 30
 ax_func.titlesize  = 40
 f_func
 
 xmax = maximum(data[:,1])
+xmin = minimum(data[:,1])
 ymax = maximum(data[:,2])
+ymin = minimum(data[:,2])
 if size(data)[1] < 10
     ax_func.xticks = 0:1:xmax
     ax_func.yticks = 0:0.01:ymax
@@ -238,7 +255,7 @@ else
     ax_func.yticks = 0:0.05:ymax
 end
 
-xval = collect(10:0.1:xmax)
+xval = collect(xmin:0.1:xmax)
 xval_ = [ [x] for x in xval]
 
 
