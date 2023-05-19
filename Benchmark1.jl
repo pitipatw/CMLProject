@@ -1,12 +1,16 @@
 using TopOpt, LinearAlgebra, StatsFuns
-# using Makie, GLMakie
+using Makie, GLMakie
 # using TopOpt.TopOptProblems.Visualization: visualize
 
+println("B1 STARTS")
 E = 1.0 # Young’s modulus
 v = 0.3 # Poisson’s ratio
 f = 1.0 # downward force
 rmin = 4.0 # filter radius
 xmin = 0.0001 # minimum density
+nx = 160
+ny = 40
+ncells = nx*ny
 problem_size = (160, 40)
 x0 = fill(1.0, prod(problem_size)) # initial design
 p = 4.0 # penalty
@@ -58,3 +62,30 @@ println("B1 has penalty: ", p)
 println("B1 has objective: ", obj(r.minimizer))
 println("END of Benchmark2.jl")
 println("#"^50)
+
+
+
+
+A_b1 = r.minimizer
+mapping = Array{Int64,2}(undef, ncells, 2)
+for i in 1:nx*ny
+    x = mod(i, nx)
+    y = div(i, nx)+1
+    if x == 0 
+        x = nx
+        y = y-1
+    end
+    mapping[i, :] = [x,y]
+end
+
+f_b1 = Figure(resolution = (800, 600))
+ax_b1, hm_b1 = heatmap(f_b1[1, 1], mapping[:, 1], mapping[:, 2], A_b1)
+
+ax_b1.title = "Area (desity)"
+ax_b1.aspect = 3
+cbar_b1 = Colorbar(f_b1[1,2], hm_b1)
+f_b1
+save("b1_com_is_"*string(compliance_threshold)*".png", f_b1)
+println("SAVE COMPLETE")
+println("B1 ENDS")
+# # end
