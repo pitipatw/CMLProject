@@ -1,5 +1,5 @@
 # for Topology optimization
-using TopOpt, LinearAlgebra, StatsFuns
+# using TopOpt, LinearAlgebra, StatsFuns
 # for Data Visualization
 using Makie, GLMakie
 # for Data Analysis
@@ -52,7 +52,7 @@ save("f_all.png", f_all)
 #### Select data for training/testing
 """
 #select data with MX as country
-c = "MX"
+c = "US"
 x_total = Float32.(collect(df[df[!, "country"].==c, :][!, "strength [MPa]"]))
 y_total = Float32.(collect(df[df[!, "country"].==c, :][!, "gwp_per_kg [kgCO2e/kg]"]))
 #find the upper and lower bound
@@ -70,6 +70,10 @@ for i in eachindex(pes_pts)
     pes[i, :] = [pes_pts[i][1], pes_pts[i][2]]
 end
 
+if c == "US" #remove the first one, it's kinda buggy
+    opt = opt[2:end, :]
+    pes = pes[2:end, :]
+end
 
 #plot qmodel to check
 begin
@@ -85,6 +89,7 @@ begin
     scatter!(ax_opt, x_pes, y_pes, color=:red, marker = :square, markersize = 10) # plot upper bound
     f_opt
 end
+
 
 
 # x_max = maximum(data[:, 1])

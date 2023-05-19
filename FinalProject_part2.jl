@@ -19,8 +19,11 @@ f3 = Figure(resolution=(600, 200))
 # (min at 50)
 # compliance_threshold = 500 # maximum compliance
 # lc = [4000,3000, 2000, 1000, 900, 800, 700, 600, 500, 400, 300, 250,200, 100, 90, 80, 70, 60, 50, 49, 48, 47, 46]
-lc = [50]
+lc = [350, 400, 500 , 600]
+lc = 600:100:2000
 for i in lc
+    f2 = Figure(resolution=(600, 200))
+    f3 = Figure(resolution=(600, 200))
     f2e = save_func_e[2]
     f2g = save_func_g[2]
     compliance_threshold  =  i
@@ -30,7 +33,9 @@ v = 0.3 # Poisson’s ratio
 f = 2.0 # downward force
 rmin = 4.0 # filter radius
 xmin = 0.0001 # minimum density
-problem_size = (60, 20)
+nx = 100
+ny = 50
+problem_size = (nx, ny)
 ncells = prod(problem_size)
 x0 = vcat(fill(1.0, ncells), fill(80.0, ncells)) # initial design
 # println(size(x0))
@@ -63,7 +68,7 @@ function obj(x)
     den = x[1:Int32(length(x) / 2)]
     gwp = [x[1] for x in f2g.(fc)]
     # minimize volume
-    return sum(cheqfilter(PseudoDensities(den.^3 .* gwp))) / length(x)*2 #- 0.4
+    return sum(cheqfilter(PseudoDensities(den .* gwp))) / length(x)*2 #- 0.4
 end
 function constr(x)
     # function obj(x)
@@ -108,11 +113,11 @@ fmin = cheqfilter(PseudoDensities(fmin)).x
 
 Am= fmin_n
 mapping = Array{Int64,2}(undef, ncells, 2)
-for i in 1:60*20
-    x = mod(i, 60)
-    y = div(i, 60)+1
+for i in 1:nx*ny
+    x = mod(i, nx)
+    y = div(i, nx)+1
     if x == 0 
-        x = 60
+        x = nx
         y = y-1
     end
     mapping[i, :] = [x,y]

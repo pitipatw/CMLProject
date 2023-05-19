@@ -287,3 +287,64 @@ function un_normalize_data(data, x_max, x_min, y_max, y_min)
     data[:, 2] = data[:, 2] .* (y_max - y_min) .+ y_min
     return data
 end
+
+
+function plot_loss(save_model, save_loss, m_names ; ftitle = "Model loss vs Epoch")
+
+    f_loss = Figure(resolution=(1200, 800))
+    ax_loss = Axis(f_loss[1, 1], xlabel="Epoch", ylabel="Loss", 
+                    yscale=log10, xscale = log10, 
+                    title = ftitle,
+                    xlabelsize = 30,
+                    ylabelsize = 30,
+                    titlesize  = 40)
+#loop and plot all the models
+    for i in eachindex(save_model)
+        model = save_model[i]
+        name = m_names[i]
+
+        # design variables are fc′
+        # assign model into function
+        f2e = x -> sqrt.(x) #normalized modulus
+        f2g = x -> model([x])[1] #will have to broadcast later.
+        save_func_e[i] = deepcopy(f2e)
+        save_func_g[i] = deepcopy(f2g)
+    
+
+        #get line type
+        # line_type = :solid
+        # println(string(name[1]))
+        w = 3
+        if string(name[1]) == "1"
+        col = :black
+        line_type = :solid
+    elseif string(name[1]) == "2" 
+        col = :red
+        if string(name[end]) == "d"
+            line_type = :solid
+        elseif string(name[end]) == "u"
+            line_type = :dot
+        elseif string(name[end]) == "h"
+            line_type = :dash
+        end
+
+    elseif string(name[1]) == "3"
+        col = :blue
+        if string(name[end]) == "d"
+            line_type = :solid
+        elseif string(name[end]) == "u"
+            line_type = :dot
+        elseif string(name[end]) == "h"
+            line_type = :dash
+        end
+    end
+
+	lines!(ax_func, xval, [x[1] for x in model.(xval_)], color=col, linestyle= line_type, linewidth= w, label = name)
+    # lines!(ax_func, range_fc′, f2g(range_fc'), markersize=7.5, color=col, linestyle = line_type, label = name)
+    lines!(ax_loss, save_loss[i], markersize=7.5, color=col, linestyle = line_type, label = name, linewidth = 5)
+    # lines!(ax_loss, save_test_loss[i], markersize=7.5, color=col, linestyle = line_type, label = "test_"*name, linewidth = 2)
+
+end
+f_loss[1, 2] = Legend(f_loss, ax_loss, "Model", framevisible = false)
+return f_loss
+end
