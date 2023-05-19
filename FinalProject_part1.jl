@@ -107,9 +107,9 @@ qmodel_opt_sig =  Chain(Dense(1, 50, sigmoid),Dense(50,50,sigmoid), Dense(50, 1)
 qmodel_opt_relu = Chain(Dense(1, 50, relu),Dense(50,50,relu), Dense(50, 1))
 qmodel_opt_tanh = Chain(Dense(1, 50, tanh),Dense(50,50,tanh), Dense(50, 1))
 
-qmodel_opt_sig, loss_history, test_history = train_model!(qmodel_opt_sig, opt, opt, ϵ = 1e-6)
-qmodel_opt_relu, loss_history, test_history = train_model!(qmodel_opt_relu, opt, opt, ϵ = 1e-6)
-qmodel_opt_tanh, loss_history, test_history = train_model!(qmodel_opt_tanh, opt, opt, ϵ = 1e-6)
+qmodel_opt_sig, loss_history1, test_history1 = train_model!(qmodel_opt_sig, opt, opt, ϵ = 1e-6)
+qmodel_opt_relu, loss_history2, test_history2 = train_model!(qmodel_opt_relu, opt, opt, ϵ = 1e-6)
+qmodel_opt_tanh, loss_history3, test_history3 = train_model!(qmodel_opt_tanh, opt, opt, ϵ = 1e-6)
 
 predict_opt_sig = x -> qmodel_opt_sig([x])[1]
 predict_opt_relu = x -> qmodel_opt_relu([x])[1]
@@ -132,9 +132,9 @@ qmodel_pes_sig = Chain(Dense(1, 50, sigmoid),Dense(50,50,sigmoid), Dense(50, 1))
 qmodel_pes_relu = Chain(Dense(1, 50, relu),Dense(50,50,relu), Dense(50, 1))
 qmodel_pes_tanh = Chain(Dense(1, 50, tanh),Dense(50,50,tanh), Dense(50, 1))
 
-qmodel_pes_sig, loss_history, test_history = train_model!(qmodel_pes_sig, pes, pes, ϵ = 1e-6)
-qmodel_pes_relu, loss_history, test_history = train_model!(qmodel_pes_relu, pes, pes, ϵ = 1e-6)
-qmodel_pes_tanh, loss_history, test_history = train_model!(qmodel_pes_tanh, pes, pes, ϵ = 1e-6)
+qmodel_pes_sig, loss_history4, test_history4 = train_model!(qmodel_pes_sig, pes, pes, ϵ = 1e-6)
+qmodel_pes_relu, loss_history5, test_history5 = train_model!(qmodel_pes_relu, pes, pes, ϵ = 1e-6)
+qmodel_pes_tanh, loss_history6, test_history6 = train_model!(qmodel_pes_tanh, pes, pes, ϵ = 1e-6)
 
 predict_pes_sig = x -> qmodel_pes_sig([x])[1]
 predict_pes_relu = x -> qmodel_pes_relu([x])[1]
@@ -157,9 +157,10 @@ f_opt
 
 range_fc′ = 10:0.1:100
 distance = 10 
+
+
 #at add each point that's close to the opt and pes function than the specified distance.
 #if the point is already in the list, don't add it again
-
 #will do Thursday night.
 #=================================================================================#
 
@@ -167,12 +168,38 @@ distance = 10
 data = hcat(x_total, y_total); # data is a 2 x n matrix
 train_data, test_data = MLJ.partition(data, 0.7, multi=true, rng=100)# rng = Random.seed!(1234))
 
+#construct models
+f_near_opt , data_opt = get_nearest(data, predict_opt_tanh, 0.05)
+f_near_opt
+
+f_near_pes , data_pes = get_nearest(train_data, predict_pes_tanh, 0.05)
+f_near_pes
+
+
+# data_opt = hcat(x_opt, y_opt); # data is a 2 x n matrix
+# data_pes = hcat(x_pes, y_pes); # data is a 2 x n matrix
+
+train_data_opt, test_data_opt = MLJ.partition(data_opt, 0.7, multi=true, rng=100)# rng = Random.seed!(1234))
+train_data_pes, test_data_pes = MLJ.partition(data_pes, 0.7, multi=true, rng=100)# rng = Random.seed!(1234))
+
 println("#"^50)
 println("There are $(size(train_data)[1]) data points in the training set.")
 println("There are $(size(test_data)[1]) data points in the testing set.")
 println("#"^50)
 
-#construct models
+println("#"^50)
+println("There are $(size(train_data_opt)[1]) data points in the training set.")
+println("There are $(size(test_data_opt)[1]) data points in the testing set.")
+println("#"^50)
+
+println("#"^50)
+println("There are $(size(train_data_pes)[1]) data points in the training set.")
+println("There are $(size(test_data_pes)[1]) data points in the testing set.")
+println("#"^50)
+
+
+
+
 
 # x_max = maximum(data[:, 1])
 # x_min = minimum(data[:, 1])
@@ -197,84 +224,132 @@ Random.seed!(12346)
 Random.seed!(1234567)
 
 @show (models, m_names) = constructModels()
+m_names = [ string(i) for i in m_names]
 
 models[1][1].weight
 
+#train 2 sets of data points.
+#train the models on the opt and pes data.
+
+
+
 
 save_model, save_loss,save_test_loss = train_all!(models, train_data, test_data, ϵ = 1e-6)
+save_model_opt, save_loss_opt,save_test_loss_opt = train_all!(models, train_data_opt, test_data_opt, ϵ = 1e-6)
+save_model_pes, save_loss_pes,save_test_loss_pes = train_all!(models, train_data_pes, test_data_pes, ϵ = 1e-6)
 
 
-# for i in eachindex(models)
-#     mn = i
-#     selected_model = models[mn]
-#     selected_model_name = m_names[mn]
-#     println("Selected model: $selected_model_name")
 
-#     selected_model, model_loss_history, test_loss_history = train_model!(selected_model, train_data, test_data, ϵ = 1e-6)
+#Plotting functions 
+#turn this into a function 
+function plot_loss_func(save_model,save_loss, data, m_names = m_names; ftitle = "" , x_total = x_total, y_total = y_total)
 
-#     save_model[i] = deepcopy(selected_model)
-#     save_loss[i]  = deepcopy(model_loss_history)
-#     save_test_loss[i] = deepcopy(test_loss_history)
-#     println("DONE TRAINING for $selected_model_name")
-# end
+    save_func_e = Vector{Function}(undef, length(save_model))
+    save_func_g = Vector{Function}(undef, length(save_model))
 
-
-#Plotting
-
-m_names = [ string(i) for i in m_names]
-
-save_func_e = Vector{Function}(undef, length(models))
-save_func_g = Vector{Function}(undef, length(models))
+    f_func = Figure(resolution=(1200, 800))
+    ax_func = Axis(f_func[1, 1], xlabel="Concrete strength [MPa]", ylabel="GWP [kgCO2e/kg]", title="Prediction"*" "*ftitle,
+    xlabelsize = 30,
+    ylabelsize = 30,
+    titlesize  = 40,
+    xticks = 0:10:100,
+    yticks = 0:0.05:0.5)
 
 
-f_func = Figure(resolution=(1200, 800))
-ax_func = Axis(f_func[1, 1], xlabel="Concrete strength [MPa]", ylabel="GWP [kgCO2e/kg]", title="Prediction")
-ax_func.xlabelsize = 30
-ax_func.ylabelsize = 30
-ax_func.titlesize  = 40
-f_func
+    f_loss = Figure(resolution=(1200, 800))
+    ax_loss = Axis(f_loss[1, 1], xlabel="Epoch", ylabel="Loss", title="Loss"*" "*ftitle,
+    yscale = log10,
+    xscale = log10,
+    xlabelsize = 30,
+    ylabelsize = 30,
+    titlesize  = 40)
 
-xmax = maximum(data[:,1])
-xmin = minimum(data[:,1])
-ymax = maximum(data[:,2])
-ymin = minimum(data[:,2])
-if size(data)[1] < 10
-    ax_func.xticks = 0:1:xmax
-    ax_func.yticks = 0:0.01:ymax
-else
-    ax_func.xticks = 0:10:xmax
-    ax_func.yticks = 0:0.05:ymax
+    ##===============================
+
+    xmax = maximum(data[:,1])
+    xmin = minimum(data[:,1])
+# ymax = maximum(data[:,2])
+# ymin = minimum(data[:,2])
+
+    xval = collect(xmin:0.1:xmax)
+    xval_ = [ [x] for x in xval] # for putting in model evaluation
+
+    for i in eachindex(save_model)
+        model = save_model[i]
+        name = m_names[i]
+
+        # design variables are fc′
+        # assign model into function
+        f2g = x -> model([x])[1] #will have to broadcast later.
+
+        save_func_g[i] = deepcopy(f2g)
+    
+
+        #get line type
+        # line_type = :solid
+        # println(string(name[1]))
+        w = 3
+        if string(name[1]) == "1"
+            col = :black
+            line_type = :solid
+        elseif string(name[1]) == "2" 
+            col = :red
+            if string(name[end]) == "d"
+                line_type = :solid
+            elseif string(name[end]) == "u"
+                line_type = :dot
+            elseif string(name[end]) == "h"
+                line_type = :dash
+            else
+                @error "line type not defined"
+            end
+        elseif string(name[1]) == "3"
+            col = :blue
+            if string(name[end]) == "d"
+                line_type = :solid
+            elseif string(name[end]) == "u"
+                line_type = :dot
+            elseif string(name[end]) == "h"
+                line_type = :dash
+            else
+                @error "line type not defined"
+            end
+        else
+        @error "line type not defined"
+    end
+
+	lines!(ax_func, xval, [x[1] for x in model.(xval_)], color=col, linestyle= line_type, linewidth= w, label = name)
+    scatter!(ax_func, x_total, y_total, color=:gray) #plot all data
+
+    lines!(ax_loss, save_loss[i], markersize=7.5, color=col, linestyle = line_type, label = name, linewidth = 5)
+    # lines!(ax_loss, save_test_loss[i], markersize=7.5, color=col, linestyle = line_type, label = "test_"*name, linewidth = 2)
+    
+end
+f_loss[1, 2] = Legend(f_loss, ax_loss, "Model", framevisible = false)
+f_func[1 ,2] = Legend(f_func, ax_func, "Model", framevisible = false)
+
+return f_loss, f_func, save_func_g
 end
 
-xval = collect(xmin:0.1:xmax)
-xval_ = [ [x] for x in xval]
+f_loss_opt, f_func_opt, save_func_g_opt = plot_loss_func(save_model_opt, save_loss_opt,  train_data, m_names, ftitle = "(Opt)")
+f_loss_pes, f_func_pes, save_func_g_pes = plot_loss_func(save_model_pes, save_loss_pes,train_data, m_names, ftitle = "(Pes)")
 
-scatter!(ax_func , data[:,1], data[:,2], markersize=20, color=:green, label = "Original Data")
+#add all plot into the f_func
 
-f_func
+f_loss_pes
+f_loss_opt
 
-
-
-f_loss = plot_loss(save_model, save_loss, m_names)
-f_loss
+f_func_pes
+f_func_opt
 
 
 #plot the surrogate model
+save("f_func_opt.png", f_func_opt)
+save("f_loss_opt.png", f_loss_opt)
+save("f_func_pes.png", f_func_pes)
+save("f_loss_pes.png", f_loss_pes)
 
 
-f_func[1 ,2] = Legend(f_func, ax_func, "Model", framevisible = false)
-
-
-f_func
-
-
-save("f_func.png", f_func)
-save("f_loss.png", f_loss)
-
-
-
-# f_with_sur = plot_country(df[df[!, "country"].==c, :], c, selected_model)
-
-
-#pick sigmoid with 2 layers
-#this should give te surrogate model used for TopOpt.2
+# This is for the opt
+f2e = x -> sqrt.(x) #normalized modulus
+f2g = save_func_g_opt[2]

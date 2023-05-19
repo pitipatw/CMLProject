@@ -348,3 +348,39 @@ end
 f_loss[1, 2] = Legend(f_loss, ax_loss, "Model", framevisible = false)
 return f_loss
 end
+
+
+
+function get_nearest(train_data, f, dis)
+    #get nearest neighours
+
+    # f is a function 
+    #this is for opt, so pick the uppep
+    points = train_data
+    x_data = Vector{Float32}(undef, 0)
+    y_data = Vector{Float32}(undef, 0)
+    for i =1:size(points)[1]
+        x = points[i,1]
+        y = points[i,2]
+        if abs(y- f(x)) < dis
+            push!(x_data, x)
+            push!(y_data, y)
+        end
+    end
+
+    #plot the original data
+    f1 = Figure(resolution = (600, 600))
+    ax1 = Axis(f1[1,1])
+    scatter!(ax1, points[:,1], points[:,2], label = "original data" , color = :blue)
+
+    #plot the data that is close to the function
+    scatter!(ax1, x_data, y_data, label = "data close to function", color = :red)
+    lines!(ax1 , 12:0.2:80, f.(12:0.2:80), label = "function", color = :green)
+    # lines!(ax1, 12:0.2:80, f.(12:0.2:80) .+ dis, label = "function + dis", color = :black)
+    #add legend
+    f1[1,2] = Legend(f1, ax1, framevisible = false)
+
+    data = hcat(x_data, y_data); # data is a 2 x n matrix
+    return f1 , data
+end
+
