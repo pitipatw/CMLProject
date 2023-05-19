@@ -12,7 +12,8 @@
 
 #### setup Topology Optimization for continuum #####
 #get benchmark problem
-# include("Benchmark1.jl")
+include("Benchmark1.jl")
+include("Benchmark2.jl")
 
 f2 = Figure(resolution=(600, 200))
 f3 = Figure(resolution=(600, 200))
@@ -33,8 +34,8 @@ v = 0.3 # Poisson’s ratio
 f = 2.0 # downward force
 rmin = 4.0 # filter radius
 xmin = 0.0001 # minimum density
-nx = 100
-ny = 50
+nx = 160
+ny = 40
 problem_size = (nx, ny)
 ncells = prod(problem_size)
 x0 = vcat(fill(1.0, ncells), fill(80.0, ncells)) # initial design

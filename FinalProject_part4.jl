@@ -17,7 +17,7 @@ Is this better?
 
 # (min at 50)
 compliance_threshold = 150 # maximum compliance
-compliance_threshold = 201
+compliance_threshold = 46
 # lc = [4000, 2000, 1000, 900, 800, 700, 600, 500, 400, 300, 200, 100, 90, 80, 70, 60, 50, 49, 48, 47, 46]
 # for i in lc
 #     compliance_threshold  =  i
@@ -50,14 +50,17 @@ comp = TopOpt.Compliance(solver)
 #     # volume fraction constraint
 #     return sum(x) / length(x) - V
 # end
-
+L = Vector{Float64}(undef, ncells)
+for i in 1:ncells
+    L[i] = norm(node_points[elements[i][1]] - node_points[elements[i][2]])
+end
 function obj(x)
     # function constr(x)
     fc = x[Int32(length(x) / 2)+1:end]
     den = x[1:Int32(length(x) / 2)]
     gwp = [x[1] for x in f2g.(fc)]
     # minimize volume
-    return sum(den.*gwp)  #- 0.4
+    return sum(den.*gwp.*L)  #- 0.4
 end
 function constr(x)
     # function obj(x)
@@ -97,9 +100,14 @@ for i in eachindex(elements)
     x1 = node_points[elements[i][1]]
     x2 = node_points[elements[i][2]]
     if Amin[i] > 0.0001
-        lines!(ax_A, [x1[1], x2[1]], [x1[2], x2[2]], color = :black, linewidth = Amin[i]*10)
+        lines!(ax_A, [x1[1], x2[1]], [x1[2], x2[2]], color = Amin[i], colorrange = (minimum(Amin):maximum(Amin)), linewidth = Amin[i]*10)
     end
 end
+
+Colorbar(f_A[1, 2], limits = (0,1), colormap = :viridis,
+    flipaxis = false)
+
+
 
 f_E = Figure(resolution = (600 , 200))
 ax_E = Axis(f_E[1, 1], xlabel = "x", ylabel = "y", title = "fc′")
@@ -121,7 +129,7 @@ save("truss_E"*string(compliance_threshold)*".png", f_E)
 
 # save("muti_fc"*string(compliance_threshold)*".png", f3)
 
-
+# text!(ax_E, "HI")
 
 
 
