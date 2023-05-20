@@ -13,7 +13,7 @@ Let's do Area optimizaiton first, get a very nice area, then do the fc optimizat
 
 
 # (min at 50)
-compliance_threshold = 350 # maximum compliance
+compliance_threshold = 800 # maximum compliance
 # lc = [4000, 2000, 1000, 900, 800, 700, 600, 500, 400, 300, 200, 100, 90, 80, 70, 60, 50, 49, 48, 47, 46]
 # for i in lc
 #     compliance_threshold  =  i

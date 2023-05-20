@@ -61,8 +61,8 @@ x0 = vcat(fill(1.0, ncells), fill(100.0, ncells)) # initial design
 # println(size(x0))
 p = 4.0 # penalty
 
-problem = PointLoadCantilever(Val{:Linear}, problem_size, (1.0, 1.0), E, v, f)
-# problem = HalfMBB(Val{:Linear}, problem_size, (1.0, 1.0), E, v, f)
+# problem = PointLoadCantilever(Val{:Linear}, problem_size, (1.0, 1.0), E, v, f)
+problem = HalfMBB(Val{:Linear}, problem_size, (1.0, 1.0), E, v, f)
 
 
 solver = FEASolver(Direct, problem; xmin=xmin)
