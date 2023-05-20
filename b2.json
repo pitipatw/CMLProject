@@ -1,0 +1,114 @@
+{
+    "unit": "meter",
+    "materials": [
+        {
+            "G12": 80760000.0,
+            "E": 10000.0,
+            "name": "DummyMaterial",
+            "family": "DummyMaterial",
+            "density": 78.5,
+            "elem_tags": [],
+            "E_unit": "kN/m2",
+            "type_name": "ISO",
+            "fy": 235000.0,
+            "density_unit": "kN/m3",
+            "fy_unit": "kN/m2",
+            "G12_unit": "kN/m2"
+        }
+    ],
+    "dimension": 2,
+    "generate_time": "27FEB2023_1000AM",
+    "elements": [
+        {
+            "end_node_inds": [
+                0,
+                1
+            ],
+            "elem_tag": ""
+        },
+        {
+            "end_node_inds": [
+                0,
+                2
+            ],
+            "elem_tag": ""
+        },
+        {
+            "end_node_inds": [
+                1,
+                2
+            ],
+            "elem_tag": ""
+        }
+    ],
+    "supports": [
+        {
+            "node_ind": 0,
+            "condition": [
+                1,
+                1
+            ]
+        },
+        {
+            "node_ind": 2,
+            "condition": [
+                0,
+                1
+            ]
+        }
+    ],
+    "node_num": 3,
+    "TO_model_type": "ground_mesh",
+    "_info": "TTObuckling example used in PENLAB.",
+    "model_name": "tim",
+    "element_num": 3,
+    "model_type": "truss",
+    "loadcases": {
+        "0": {
+            "ploads": [
+                {
+                    "node_ind": 1,
+                    "force": [
+                        0.0,
+                        -1000
+                    ],
+                    "loadcase": 0,
+                    "force_unit": "kN"
+                }
+            ],
+            "lc_ind": 0
+        }
+    },
+    "cross_secs": [
+        {
+            "A": 50.0,
+            "name": "",
+            "family": "DummyCroSec",
+            "elem_tags": [],
+            "A_unit": "m2"
+        }
+    ],
+    "nodes": [
+        {
+            "node_ind": 0,
+            "point": [
+                0.0,
+                0.0
+            ]
+        },
+        {
+            "node_ind": 1,
+            "point": [
+                5.0,
+                5.0
+            ]
+        },
+        {
+            "node_ind": 2,
+            "point": [
+                10.0,
+                0.0
+            ]
+        }
+    ]
+}

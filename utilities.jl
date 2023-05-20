@@ -1,5 +1,6 @@
 using DataFrames
 
+
 function removeNothing(df::DataFrame)
     removed_columns = Vector{String}()
     for i in names(df)
@@ -260,18 +261,18 @@ function plot_country(df::DataFrame, country::String, model::Chain; savefig::Boo
 end;
 
 function constructModels()
-    N1 = Chain(Dense(1, 1)) #need 10000 epoch
+    # N1 = Chain(Dense(1, 1)) #need 10000 epoch
 
     N2_1 = Chain(Dense(1, 10, sigmoid), Dense(10, 1)) #need less than 5000 epoch
-    N2_2 = Chain(Dense(1, 10, relu), Dense(10, 1))
+    # N2_2 = Chain(Dense(1, 10, relu), Dense(10, 1))
     N2_3 = Chain(Dense(1, 10, tanh), Dense(10, 1))
 
     N3_1 = Chain(Dense(1, 10), Dense(10, 10, sigmoid), Dense(10, 1))
-    N3_2 = Chain(Dense(1, 10), Dense(10, 10, relu), Dense(10, 1))
+    # N3_2 = Chain(Dense(1, 10), Dense(10, 10, relu), Dense(10, 1))
     N3_3 = Chain(Dense(1, 10), Dense(10, 10, tanh), Dense(10, 1))
 
-    models = [N1, N2_1, N2_2, N2_3, N3_1, N3_2, N3_3]
-    model_names = ["1", "2_sigmoid" , "2_relu", "2_tanh", "3_sigmoid", "3_relu", "3_tanh"]
+    models = [N2_1, N2_3, N3_1, N3_3]
+    model_names = [ "2_sigmoid" , "2_tanh", "3_sigmoid", "3_tanh"]
     return models, model_names
 end
 
@@ -384,3 +385,89 @@ function get_nearest(train_data, f, dis)
     return f1 , data
 end
 
+function plot_loss_func(save_model,save_loss, data, m_names = m_names; ftitle = "" , x_total = x_total, y_total = y_total)
+
+    # save_func_e = Vector{Function}(undef, length(save_model))
+    save_func_g = Vector{Function}(undef, length(save_model))
+
+    f_func = Figure(resolution=(1200, 800))
+    ax_func = Axis(f_func[1, 1], xlabel="Concrete strength [MPa]", ylabel="GWP [kgCO2e/kg]", title="Prediction"*" "*ftitle,
+    xlabelsize = 30,
+    ylabelsize = 30,
+    titlesize  = 40,
+    xticks = 0:10:100,
+    yticks = 0:0.05:0.5)
+
+
+    f_loss = Figure(resolution=(1200, 800))
+    ax_loss = Axis(f_loss[1, 1], xlabel="Epoch", ylabel="Loss", title="Loss"*" "*ftitle,
+    yscale = log10,
+    xscale = log10,
+    xlabelsize = 30,
+    ylabelsize = 30,
+    titlesize  = 40)
+
+    ##===============================
+
+    xmax = maximum(data[:,1])
+    xmin = minimum(data[:,1])
+# ymax = maximum(data[:,2])
+# ymin = minimum(data[:,2])
+
+    xval = collect(xmin:0.1:xmax)
+    xval_ = [ [x] for x in xval] # for putting in model evaluation
+
+    for i in eachindex(save_model)
+        model = save_model[i]
+        name = m_names[i]
+
+        # design variables are fc′
+        # assign model into function
+        f2g = x -> model([x])[1] #will have to broadcast later.
+
+        save_func_g[i] = deepcopy(f2g)
+    
+        #get line type
+        # line_type = :solid
+        # println(string(name[1]))
+        w = 3
+        if string(name[1]) == "1"
+            col = :black
+            line_type = :solid
+        elseif string(name[1]) == "2" 
+            col = :red
+            if string(name[end]) == "d"
+                line_type = :solid
+            elseif string(name[end]) == "u"
+                line_type = :dot
+            elseif string(name[end]) == "h"
+                line_type = :dash
+            else
+                @error "line type not defined"
+            end
+        elseif string(name[1]) == "3"
+            col = :blue
+            if string(name[end]) == "d"
+                line_type = :solid
+            elseif string(name[end]) == "u"
+                line_type = :dot
+            elseif string(name[end]) == "h"
+                line_type = :dash
+            else
+                @error "line type not defined"
+            end
+        else
+            @error "line type not defined"
+        end
+
+	lines!(ax_func, xval, [x[1] for x in model.(xval_)], color=col, linestyle= line_type, linewidth= w, label = name)
+    lines!(ax_loss, save_loss[i], markersize=7.5, color=col, linestyle = line_type, label = name, linewidth = 5)
+    # lines!(ax_loss, save_test_loss[i], markersize=7.5, color=col, linestyle = line_type, label = "test_"*name, linewidth = 2)
+    
+    end
+    f_loss[1, 2] = Legend(f_loss, ax_loss, "Model", framevisible = false)
+    f_func[1 ,2] = Legend(f_func, ax_func, "Model", framevisible = false)
+    scatter!(ax_func, x_total, y_total, color=:gray) #plot all data
+
+    return f_loss, f_func, save_func_g
+end

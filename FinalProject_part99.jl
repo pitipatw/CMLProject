@@ -156,106 +156,112 @@ f_opt
 
 save("activation_functions.png", f_opt, px_per_unit=:px, width=:auto, height=:auto)
 
-
-#DO for India and Mexico
-
-#India
-#select data with IN as country
-c = "IN"
-x_total = Float32.(collect(df[df[!, "country"].==c, :][!, "strength [MPa]"]))
-y_total = Float32.(collect(df[df[!, "country"].==c, :][!, "gwp_per_kg [kgCO2e/kg]"]))
-
-data = hcat(x_total, y_total)
-f_IN = Figure(resolution = (800, 600))
-ax_IN = Axis(f_IN[1, 1], xlabel ="Concrete strength [MPa]", ylabel="GWP [kgCO2e/kg]", title = "India",
-xlabelsize = 30, ylabelsize = 30, titlesize = 40)
-scatter!(ax_IN, x_total, y_total, color=:gray) #plot all data
-f_IN
-
-model_IN =  Chain(Dense(1, 50, sigmoid),Dense(50,50,sigmoid), Dense(50, 1))
-model_IN, lh_IN, th_IN = train_model!(model_IN,data ,data, ϵ = 1e-6)
-xval = range(minimum(x_total), stop=maximum(x_total), length=100)
-xval_ = [[x] for x in xval]
-yval = [ i[1] for i in model_IN.(xval_)]
-lines!(ax_IN, xval, yval, color=:red)
-f_IN
-save("IN.png", f_IN)
-
-#Mexico
-#select data with MX as country
-c = "MX"
-x_total = Float32.(collect(df[df[!, "country"].==c, :][!, "strength [MPa]"]))
-y_total = Float32.(collect(df[df[!, "country"].==c, :][!, "gwp_per_kg [kgCO2e/kg]"]))
-x_total = sort(x_total)
-y_total = sort(y_total)
-deleteat!(x_total, 2)
-deleteat!(y_total, 2)
-
-data = hcat(x_total, y_total)
-f_MX = Figure(resolution = (800, 600))
-ax_MX = Axis(f_MX[1, 1], xlabel ="Concrete strength [MPa]", ylabel="GWP [kgCO2e/kg]", title = "Mexico",
-xlabelsize = 30, ylabelsize = 30, titlesize = 40)
-scatter!(ax_MX, x_total, y_total, color=:gray) #plot all data
-f_MX
-
-model_MX =  Chain(Dense(1, 50, sigmoid),Dense(50,50,sigmoid), Dense(50, 1))
-model_MX, lh_MX, th_MX = train_model!(model_MX,data ,data, ϵ = 1e-5)
-xval = range(minimum(x_total), stop=maximum(x_total), length=100)
-xval_ = [[x] for x in xval]
-yval = [ i[1] for i in model_MX.(xval_)]
-lines!(ax_MX, xval, yval, color=:red)
-f_MX
-save("MX.png", f_MX)
-
-function get_func(c::String, df::DataFrame)
-   
-    x_total = Float32.(collect(df[df[!, "country"].==c, :][!, "strength [MPa]"]))
-    y_total = Float32.(collect(df[df[!, "country"].==c, :][!, "gwp_per_kg [kgCO2e/kg]"]))
-    
-    data = hcat(x_total, y_total)
-    f_MX = Figure(resolution = (800, 600))
-    ax_MX = Axis(f_MX[1, 1], xlabel ="Concrete strength [MPa]", ylabel="GWP [kgCO2e/kg]", title = "Mexico",
-    xlabelsize = 30, ylabelsize = 30, titlesize = 40)
-    scatter!(ax_MX, x_total, y_total, color=:gray) #plot all data
-    f_MX
-
-    model_MX =  Chain(Dense(1, 50, sigmoid),Dense(50,50,sigmoid), Dense(50, 1))
-    model_MX, lh_MX, th_MX = train_model!(model_MX,data ,data, ϵ = 1e-5)
-    xval = range(minimum(x_total), stop=maximum(x_total), length=100)
-    xval_ = [[x] for x in xval]
-    yval = [ i[1] for i in model_MX.(xval_)]
-    lines!(ax_MX, xval, yval, color=:red)
-    f_MX
-
-    return model_MX , f_MX
-end
-
-f2g_MX = x-> model_MX([x])[1]
-f2g_IN = x-> model_IN([x])[1]
-
-f2g_MX(20)
-f2g_IN(20)
-
-x = [ 10 ,20, 30]
-y = f2g_MX.(x)
-
-#try plot the functions together. 
-f_func = Figure(resolution = (800, 600))
-ax_func = Axis(f_func[1, 1], xlabel ="Concrete strength [MPa]", ylabel="GWP [kgCO2e/kg]",
-xlabelsize = 30, ylabelsize = 30, titlesize = 40,
-xticks= 0:10:100, yticks = 0:0.1:0.7)
-xlims!(ax_func, 10, 80)
-ylims!(ax_func, 0, 0.7)
+###Let's end here.
 
 
-lines!(ax_func, xval, y_pred_pes_sig, color=:blue , linestyle = :dash, label = " pes")
-#plot MX
-lines!(ax_func, xval, f2g_MX.(xval), color=:green , linestyle = :solid, label = " MX")
-#plot in
-lines!(ax_func, xval, f2g_IN.(xval), color=:orange , linestyle = :solid, label = " IN")
-lines!(ax_func, xval, y_pred_opt_sig, color=:red , linestyle = :dash, label = " opt")
-f_func[1,2]= Legend(f_func, ax_func, framevisible = false)
 
-f_func
 
-save("func.png", f_func)
+
+
+
+
+
+#=================================================================================#
+#let's get data that's more than 10% (val) of the opt and pes function 
+
+
+#at add each point that's close to the opt and pes function than the specified distance.
+#if the point is already in the list, don't add it again
+#will do Thursday night.
+#=================================================================================#
+
+#### Separate the data into training and testing
+data = hcat(x_total, y_total); # data is a 2 x n matrix
+train_data, test_data = MLJ.partition(data, 0.7, multi=true, rng=100)# rng = Random.seed!(1234))
+
+#construct models
+f_near_opt , data_opt = get_nearest(data, predict_opt_tanh, 0.05)
+f_near_opt
+
+f_near_pes , data_pes = get_nearest(train_data, predict_pes_tanh, 0.05)
+f_near_pes
+
+# data_opt = hcat(x_opt, y_opt); # data is a 2 x n matrix
+# data_pes = hcat(x_pes, y_pes); # data is a 2 x n matrix
+
+train_data_opt, test_data_opt = MLJ.partition(data_opt, 0.7, multi=true, rng=100)# rng = Random.seed!(1234))
+train_data_pes, test_data_pes = MLJ.partition(data_pes, 0.7, multi=true, rng=100)# rng = Random.seed!(1234))
+
+
+
+
+println("#"^50)
+println("There are $(size(train_data)[1]) data points in the training set.")
+println("There are $(size(test_data)[1]) data points in the testing set.")
+println("#"^50)
+
+println("#"^50)
+println("There are $(size(train_data_opt)[1]) data points in the training set.")
+println("There are $(size(test_data_opt)[1]) data points in the testing set.")
+println("#"^50)
+
+println("#"^50)
+println("There are $(size(train_data_pes)[1]) data points in the training set.")
+println("There are $(size(test_data_pes)[1]) data points in the testing set.")
+println("#"^50)
+
+
+
+
+
+# x_max = maximum(data[:, 1])
+# x_min = minimum(data[:, 1])
+# y_max = maximum(data[:, 2])
+# y_min = minimum(data[:, 2])
+
+# # @assert un_normalize_data(normalize_data(train_data, x_max,x_min, y_max,y_min),x_max,x_min, y_max,y_min ) == train_data
+
+# train_data_pes_n = normalize_data(train_data_pes, x_max,x_min, y_max,y_min)
+# test_data_pes_n = normalize_data(test_data_pes, x_max,x_min, y_max,y_min)
+# train_data_opt_n = normalize_data(train_data_opt, x_max,x_min, y_max,y_min)
+# test_data_opt_n = normalize_data(test_data_opt, x_max,x_min, y_max,y_min)
+# # 
+# #plot data Distributions
+# f_dis = Figure(resolution=(800, 600)) 
+# ax_dis = Axis(f_dis[1, 1], xlabel="x", ylabel="y", title="Data Distribution")
+# hist(x_total, bins=20, alpha=0.5, label="x", color=:red)
+# hist(test_data_n[:, 1], bins=20, alpha=0.5, label="x_train", color=:blue)
+
+
+
+#### Construct models
+Random.seed!(1234567)
+
+@show (models, m_names) = constructModels()
+m_names = [ string(i) for i in m_names]
+
+# save_model, save_loss,save_test_loss = train_all!(models, train_data, test_data, ϵ = 1e-6)
+save_model_opt, save_loss_opt, save_test_loss_opt = train_all!(models, train_data_opt, test_data_opt, ϵ = 1e-6)
+f_loss_opt, f_func_opt, save_func_g_opt = plot_loss_func(save_model_opt, save_loss_opt,  train_data, m_names, ftitle = "(Opt)")
+f_loss_opt
+f_func_opt
+
+
+
+
+save_model_pes, save_loss_pes, save_test_loss_pes = train_all!(models, train_data_pes, test_data_pes, ϵ = 1e-6)
+f_loss_pes, f_func_pes, save_func_g_pes = plot_loss_func(save_model_pes, save_loss_pes,  train_data, m_names, ftitle = "(Pes)")
+f_loss_pes
+f_func_pes
+
+
+#plot the surrogate model
+save("f_func_opt.png", f_func_opt)
+save("f_loss_opt.png", f_loss_opt)
+save("f_func_pes.png", f_func_pes)
+save("f_loss_pes.png", f_loss_pes)
+
+
+# This is for the opt
+f2e = x -> sqrt.(x) #normalized modulus
+f2g = save_func_g_opt[2]

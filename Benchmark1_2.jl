@@ -16,8 +16,8 @@ x0 = fill(1.0, prod(problem_size)) # initial design
 p = 4.0 # penalty
 compliance_threshold = 800 # maximum compliance
 
-problem = PointLoadCantilever(Val{:Linear}, problem_size, (1.0, 1.0), E, v, f)
-#problem = HalfMBB(Val{:Linear}, problem_size, (1.0, 1.0), E, v, f)
+# problem = PointLoadCantilever(Val{:Linear}, problem_size, (1.0, 1.0), E, v, f)
+problem = HalfMBB(Val{:Linear}, problem_size, (1.0, 1.0), E, v, f)
 
 solver = FEASolver(Direct, problem; xmin=xmin)
 
@@ -27,7 +27,7 @@ comp = TopOpt.Compliance(solver)
 
 function obj(x)
     # minimize volume
-    return sum(cheqfilter(PseudoDensities(x)))/length(x) 
+    return sum(cheqfilter(PseudoDensities(x))) / length(x)
 end
 function constr(x)
     # compliance upper-bound
@@ -60,8 +60,7 @@ println("B1 has compliance: ", comp(PseudoDensities(r.minimizer)))
 println("B1 has volume fraction: ", sum(r.minimizer) / length(r.minimizer))
 println("B1 embodied carbon: ",sum(r.minimizer) * 0.446 )
 println("B1 has penalty: ", p)
-println("B1 has objective: ", obj(r.minimizer))
-println("B1 has EC (from obj): ", obj(r.minimizer) * 0.446)
+println("B1 has objective: ", obj(r.minimizer)*0.446)
 println("END of Benchmark1.jl")
 println("#"^50)
 

@@ -27,14 +27,14 @@ comp = TopOpt.Compliance(solver)
 
 function obj(x)
     # minimize volume
-    return sum(cheqfilter(PseudoDensities(x)))/length(x) 
+    return sum(cheqfilter(PseudoDensities(x))) / length(x)
 end
 function constr(x)
     # compliance upper-bound
     return comp(cheqfilter(PseudoDensities(x))) - compliance_threshold
 end
 
-m = TopOpt.Model(obj)
+m = Model(obj)
 addvar!(m, zeros(length(x0)), ones(length(x0)))
 Nonconvex.add_ineq_constraint!(m, constr)
 
@@ -58,11 +58,9 @@ println("B1 report:")
 println("B1 has compliance threshold: ", compliance_threshold)
 println("B1 has compliance: ", comp(PseudoDensities(r.minimizer)))
 println("B1 has volume fraction: ", sum(r.minimizer) / length(r.minimizer))
-println("B1 embodied carbon: ",sum(r.minimizer) * 0.446 )
 println("B1 has penalty: ", p)
 println("B1 has objective: ", obj(r.minimizer))
-println("B1 has EC (from obj): ", obj(r.minimizer) * 0.446)
-println("END of Benchmark1.jl")
+println("END of Benchmark2.jl")
 println("#"^50)
 
 

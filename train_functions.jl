@@ -1,6 +1,7 @@
 using Flux
 
-function train_model!(selected_model::Chain, train_data, test_data ; epoch_lim = 10000, ϵ = 0.0001)
+function train_model!(selected_model_in::Chain, train_data, test_data ; epoch_lim = 10000, ϵ = 0.0001)
+    selected_model = deepcopy(selected_model_in)
     model_loss_history = Vector{Float32}()
     test_loss_history = Vector{Float32}()
     push!(model_loss_history, 1.0)
@@ -12,6 +13,8 @@ function train_model!(selected_model::Chain, train_data, test_data ; epoch_lim =
     y_test = test_data[:, [2]]'
 
     loss1(model, x, y) = Flux.mse(model(x), y)
+    # loss1(model, x, y) = Flux.mae(model(x), y)
+
     opt_state = Flux.setup(Flux.Adam(), selected_model)
 
     epoch = 0 
@@ -19,7 +22,7 @@ function train_model!(selected_model::Chain, train_data, test_data ; epoch_lim =
 
     while epoch < epoch_lim && (model_loss_history[end] > ϵ || model_loss_history[end] > ϵ )
         epoch += 1 
-        dLdm = gradient(loss1, selected_model, x_train, y_train)[1]
+        dLdm = Flux.gradient(loss1, selected_model, x_train, y_train)[1]
         # state_tree, selected_model = Optimisers.update(state_tree, selected_model, dLdm)
         Flux.update!(opt_state, selected_model, dLdm)
 
@@ -27,7 +30,7 @@ function train_model!(selected_model::Chain, train_data, test_data ; epoch_lim =
         testing_loss  = loss1(selected_model, x_test , y_test)
         push!(model_loss_history, training_loss)
         push!(test_loss_history, testing_loss)
-        if epoch % 100 == 0
+        if epoch % 1000 == 0
             println("Epoch: $epoch, Loss: $training_loss, Test Loss: $testing_loss")
         end
         
