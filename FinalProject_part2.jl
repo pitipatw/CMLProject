@@ -21,9 +21,9 @@ f2g_MX
 f2g_IN
 predict_pes_sig
 predict_opt_sig
-f2g = predict_pes_sig
+# f2g = predict_pes_sig
 f2g = predict_opt_sig
-f2g = f2g_MX
+# f2g = f2g_MX
 # f2g = x-> (x./100).^4
 
 
@@ -95,7 +95,7 @@ obj(x0)
 gradient(constr, x0)
 gradient(obj, x0)
 m = TopOpt.Model(obj)
-addvar!(m, vcat(zeros(length(x0) ÷ 2), 10 * ones(length(x0) ÷ 2)), vcat(ones(length(x0) ÷ 2), 75 * ones(length(x0) ÷ 2)))
+addvar!(m, vcat(zeros(length(x0) ÷ 2), 10 * ones(length(x0) ÷ 2)), vcat(ones(length(x0) ÷ 2), 100 * ones(length(x0) ÷ 2)))
 Nonconvex.add_ineq_constraint!(m, constr)
 
 options = MMAOptions(; maxiter=1000, tol=Tolerance(; kkt=1e-4, x=1e-4, f=1e-4))
@@ -155,8 +155,8 @@ cbar2 = Colorbar(f3[1, 2], hm2)
 # cbar3 = Colorbar(f2[3,2], hm3)
 f2
 f3
-save("Part2_" * string(compliance_threshold) * ".png", f2)
-save("Part2_" * string(compliance_threshold) * ".png", f3)
+save("Part2_A" * string(compliance_threshold) * ".png", f2)
+save("Part2_FC" * string(compliance_threshold) * ".png", f3)
 
 # end
 
