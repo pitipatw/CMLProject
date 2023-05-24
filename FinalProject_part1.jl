@@ -39,12 +39,11 @@ countries = unique(df[!, "country"])
 countries = vcat(countries, "ALL")
 
 f_all = Figure(resolution = (1200, 800))
-ax_all = Axis(f_all[1, 1], xlabel="Strength [MPa]", ylabel="GWP [kgCO2e/kg]")
-ax_all.title = "Strength vs GWP"
-ax_all.titlesize  = 40
-ax_all.ylabelsize = 30
-ax_all.xlabelsize = 30
-scatter!(ax_all, df[!, "strength [MPa]"], df[!, "gwp_per_kg [kgCO2e/kg]"], color=:blue, markersize=20)
+ax_all = Axis(f_all[1, 1], xlabel="Strength [MPa]", ylabel="GWP [kgCO2e/kg]", 
+title = "Strength vs GWP", titlesize  = 40, ylabelsize = 30, xlabelsize = 30, 
+xticks = 10:10:100, yticks = 0:0.1:1.0, xticksize = 20, yticksize = 20)
+
+scatter!(ax_all, df[!, "strength [MPa]"], df[!, "gwp_per_kg [kgCO2e/kg]"], color=df[!, "gwp_per_kg [kgCO2e/kg]"], markersize=15)
 f_all
 save("f_all.png", f_all)
 
@@ -82,7 +81,7 @@ begin
     x_pes = pes[:, 1]
     y_pes = pes[:, 2]
 
-    f_opt = Figure(resolution = (1200, 700))
+    f_opt = Figure(resolution = (1200, 800))
     ax_opt = Axis(f_opt[1, 1], xlabel ="Concrete strength [MPa]", ylabel="GWP [kgCO2e/kg]",
     xlabelsize = 30, ylabelsize = 30, titlesize = 40)
     scatter!(ax_opt, x_total, y_total, color=:gray) #plot all data
@@ -169,6 +168,8 @@ data = hcat(x_total, y_total)
 f_IN = Figure(resolution = (800, 600))
 ax_IN = Axis(f_IN[1, 1], xlabel ="Concrete strength [MPa]", ylabel="GWP [kgCO2e/kg]", title = "India",
 xlabelsize = 30, ylabelsize = 30, titlesize = 40)
+xlims!(ax_IN,0,75)
+ylims!(ax_IN,0,.4)
 scatter!(ax_IN, x_total, y_total, color=:gray) #plot all data
 f_IN
 
@@ -195,6 +196,8 @@ data = hcat(x_total, y_total)
 f_MX = Figure(resolution = (800, 600))
 ax_MX = Axis(f_MX[1, 1], xlabel ="Concrete strength [MPa]", ylabel="GWP [kgCO2e/kg]", title = "Mexico",
 xlabelsize = 30, ylabelsize = 30, titlesize = 40)
+xlims!(ax_MX,0,90)
+ylims!(ax_MX,0,.4)
 scatter!(ax_MX, x_total, y_total, color=:gray) #plot all data
 f_MX
 
@@ -244,9 +247,13 @@ f_func = Figure(resolution = (800, 600))
 ax_func = Axis(f_func[1, 1], xlabel ="Concrete strength [MPa]", ylabel="GWP [kgCO2e/kg]",
 xlabelsize = 30, ylabelsize = 30, titlesize = 40,
 xticks= 0:10:100, yticks = 0:0.1:0.7)
-xlims!(ax_func, 10, 80)
+xlims!(ax_func, 5, 105)
 ylims!(ax_func, 0, 0.7)
 
+x_total = df[!, "strength [MPa]"]
+y_total = df[!, "gwp_per_kg [kgCO2e/kg]"]
+
+scatter!(ax_func, x_total, y_total, color=:gray, label= "data") #plot all data
 
 lines!(ax_func, xval, y_pred_pes_sig, color=:blue , linestyle = :dash, label = " pes")
 #plot MX
@@ -254,6 +261,8 @@ lines!(ax_func, xval, f2g_MX.(xval), color=:green , linestyle = :solid, label = 
 #plot in
 lines!(ax_func, xval, f2g_IN.(xval), color=:orange , linestyle = :solid, label = " IN")
 lines!(ax_func, xval, y_pred_opt_sig, color=:red , linestyle = :dash, label = " opt")
+
+
 f_func[1,2]= Legend(f_func, ax_func, framevisible = false)
 
 f_func
