@@ -6,7 +6,7 @@ function find_upperbound(x::Vector{Float32}, y::Vector{Float32})
     #get the bottom left most point
     x_min, x_min_i = findmin(x)
     y_min = y[x_min_i]
-    println("x_min = $x_min, y_min = $y_min")
+    # println("x_min = $x_min, y_min = $y_min")
     #get all points to the right of the current point
 
     remain_points = Vector{Tuple{Float64}}()
@@ -62,7 +62,7 @@ function find_lowerbound(x::Vector{Float32}, y::Vector{Float32})
     #get the bottom left most point
     x_min, x_min_i = findmin(x)
     y_min = y[x_min_i]
-    println("x_min = $x_min, y_min = $y_min")
+    # println("x_min = $x_min, y_min = $y_min")
     #get all points to the right of the current point
 
     remain_points = Vector{Tuple{Float64}}()

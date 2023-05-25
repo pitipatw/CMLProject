@@ -32,7 +32,7 @@ Makie.inline!(true) # so Makie plots are in Jupyter notebook
 """
 ## Load data
 """
-df = CSV.read("Dataset_1.csv", DataFrame)
+df = CSV.read("Dataset.csv", DataFrame)
 ndata = size(df)[1]
 println("There are $ndata data points in the dataset.")
 countries = unique(df[!, "country"])
@@ -52,8 +52,14 @@ save("f_all.png", f_all)
 """
 #select data with MX as country
 c = "US"
-x_total = Float32.(collect(df[df[!, "country"].==c, :][!, "strength [MPa]"]))
-y_total = Float32.(collect(df[df[!, "country"].==c, :][!, "gwp_per_kg [kgCO2e/kg]"]))
+if c == "ALL"
+    x_total = Float32.(collect(df[!, "strength [MPa]"]))
+    y_total = Float32.(collect(df[!, "gwp_per_kg [kgCO2e/kg]"]))
+else
+    x_total = Float32.(collect(df[df[!, "country"].==c, :][!, "strength [MPa]"]))
+    y_total = Float32.(collect(df[df[!, "country"].==c, :][!, "gwp_per_kg [kgCO2e/kg]"]))
+end
+
 #find the upper and lower bound
 opt_pts = find_lowerbound(x_total, y_total)
 pes_pts = find_upperbound(x_total, y_total)
@@ -61,6 +67,7 @@ pes_pts = find_upperbound(x_total, y_total)
 #convert to matrix
 opt = Matrix{Float32}(undef, length(opt_pts), 2)
 pes = Matrix{Float32}(undef, length(pes_pts), 2)
+
 for i in eachindex(opt_pts)
     opt[i, :] = [opt_pts[i][1], opt_pts[i][2]]
 end
@@ -89,7 +96,7 @@ begin
     scatter!(ax_opt, x_pes, y_pes, color=:red, marker = :square, markersize = 10) # plot upper bound
     f_opt
 end
-
+f_opt
 
 
 # x_max = maximum(data[:, 1])
@@ -165,7 +172,7 @@ x_total = Float32.(collect(df[df[!, "country"].==c, :][!, "strength [MPa]"]))
 y_total = Float32.(collect(df[df[!, "country"].==c, :][!, "gwp_per_kg [kgCO2e/kg]"]))
 
 data = hcat(x_total, y_total)
-f_IN = Figure(resolution = (800, 600))
+f_IN = Figure(resolution = (1200,800))
 ax_IN = Axis(f_IN[1, 1], xlabel ="Concrete strength [MPa]", ylabel="GWP [kgCO2e/kg]", title = "India",
 xlabelsize = 30, ylabelsize = 30, titlesize = 40)
 xlims!(ax_IN,0,75)
@@ -193,7 +200,7 @@ deleteat!(x_total, 2)
 deleteat!(y_total, 2)
 
 data = hcat(x_total, y_total)
-f_MX = Figure(resolution = (800, 600))
+f_MX = Figure(resolution = (1200,800))
 ax_MX = Axis(f_MX[1, 1], xlabel ="Concrete strength [MPa]", ylabel="GWP [kgCO2e/kg]", title = "Mexico",
 xlabelsize = 30, ylabelsize = 30, titlesize = 40)
 xlims!(ax_MX,0,90)
@@ -205,7 +212,7 @@ model_MX =  Chain(Dense(1, 50, sigmoid),Dense(50,50,sigmoid), Dense(50, 1))
 model_MX, lh_MX, th_MX = train_model!(model_MX,data ,data, ϵ = 1e-5)
 xval = range(minimum(x_total), stop=maximum(x_total), length=100)
 xval_ = [[x] for x in xval]
-yval = [ i[1] for i in model_MX.(xval_)]
+yval  = [ i[1] for i in model_MX.(xval_)]
 lines!(ax_MX, xval, yval, color=:red)
 f_MX
 save("MX.png", f_MX)
@@ -216,7 +223,7 @@ function get_func(c::String, df::DataFrame)
     y_total = Float32.(collect(df[df[!, "country"].==c, :][!, "gwp_per_kg [kgCO2e/kg]"]))
     
     data = hcat(x_total, y_total)
-    f_MX = Figure(resolution = (800, 600))
+    f_MX = Figure(resolution = (1200, 800))
     ax_MX = Axis(f_MX[1, 1], xlabel ="Concrete strength [MPa]", ylabel="GWP [kgCO2e/kg]", title = "Mexico",
     xlabelsize = 30, ylabelsize = 30, titlesize = 40)
     scatter!(ax_MX, x_total, y_total, color=:gray) #plot all data
@@ -243,15 +250,16 @@ x = [ 10 ,20, 30]
 y = f2g_MX.(x)
 
 #try plot the functions together. 
-f_func = Figure(resolution = (800, 600))
+f_func = Figure(resolution = (1200, 800))
+f_func
 ax_func = Axis(f_func[1, 1], xlabel ="Concrete strength [MPa]", ylabel="GWP [kgCO2e/kg]",
 xlabelsize = 30, ylabelsize = 30, titlesize = 40,
 xticks= 0:10:100, yticks = 0:0.1:0.7)
 xlims!(ax_func, 5, 105)
 ylims!(ax_func, 0, 0.7)
 
-x_total = df[!, "strength [MPa]"]
-y_total = df[!, "gwp_per_kg [kgCO2e/kg]"]
+# x_total = df[!, "strength [MPa]"]
+# y_total = df[!, "gwp_per_kg [kgCO2e/kg]"]
 
 scatter!(ax_func, x_total, y_total, color=:gray, label= "data") #plot all data
 
@@ -268,3 +276,5 @@ f_func[1,2]= Legend(f_func, ax_func, framevisible = false)
 f_func
 
 save("func.png", f_func)
+
+println("PART 1 DONE")
